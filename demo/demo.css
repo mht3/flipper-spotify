@@ -49,11 +49,11 @@ button {
 .controls [data-key=down] { left: 74.1%; top: 64.1%; }
 .controls [data-key=back] { left: 93.55%; top: 64.7%; }
 .actions { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1rem; }
-.actions button {
+.actions button, #tour-start {
   min-height: 44px; padding: .55rem 1rem; border: 1px solid #3d6380;
   background: #112b40; border-radius: 2rem;
 }
-.actions .primary { color: #052036; border-color: #91d5ff; background: #91d5ff; }
+#tour-start { margin-top: 1rem; color: #052036; border-color: #91d5ff; background: #91d5ff; }
 button:focus-visible, .controls button.cue {
   outline: 3px solid #59bdff; outline-offset: 2px;
 }
@@ -72,27 +72,6 @@ progress { display: block; width: 100%; height: .35rem; margin-top: 1rem; accent
   .device-body { width: 150%; left: -36.111%; margin-block: -6%; }
   .controls button { width: max(10%, 30px); height: max(20%, 30px); }
 }
-#device.enlarged { padding: .8rem; }
-.enlarged .device-body { width: 100%; left: 0; margin: 0; aspect-ratio: auto; }
-.enlarged img { display: none; }
-.enlarged .controls {
-  position: static; width: 100%; height: auto; display: grid;
-  margin: auto; gap: .4rem; justify-content: center;
-  grid-template-areas: "screen screen screen screen"
-                       ". up . ."
-                       "left ok right back"
-                       ". down . .";
-  grid-template-rows: auto repeat(3, 44px);
-  grid-template-columns: repeat(4, minmax(44px, 4.5rem));
-}
-.enlarged #lcd { position: static; grid-area: screen; width: 100%; height: auto; aspect-ratio: 2; background: #ffbb68; border-radius: .35rem; }
-.enlarged .controls button { position: static; transform: none; width: 100%; height: 100%; color: #f5f9ff; background: #16364e; border: 1px solid #476c85; border-radius: .75rem; }
-.enlarged [data-key=up] { grid-area: up; }
-.enlarged [data-key=down] { grid-area: down; }
-.enlarged [data-key=ok] { grid-area: ok; }
-.enlarged [data-key=back] { grid-area: back; }
-.enlarged [data-key=left] { grid-area: left; }
-.enlarged [data-key=right] { grid-area: right; }
 @media (max-width: 22rem) {
   main { padding-inline: .75rem; }
 }

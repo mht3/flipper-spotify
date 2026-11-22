@@ -11,7 +11,6 @@ const tourStart = document.querySelector('#tour-start');
 const lesson = document.querySelector('#lesson');
 const hint = document.querySelector('#lesson-hint');
 const retry = document.querySelector('#retry');
-const zoom = document.querySelector('#zoom');
 const status = document.querySelector('#player-status');
 const freePlay = openSpotifyDemo();
 let tour;
@@ -103,13 +102,6 @@ document.querySelector('#exit').addEventListener('click', () => {
   renderLesson();
   update();
   tourStart.focus({preventScroll: true});
-});
-
-zoom.addEventListener('click', () => {
-  const enlarged = device.classList.toggle('enlarged');
-  zoom.setAttribute('aria-pressed', String(enlarged));
-  zoom.textContent = enlarged ? 'Show device' : 'Enlarge screen';
-  draw();
 });
 
 for (const button of keys) {
