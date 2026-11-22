@@ -1,6 +1,6 @@
 # Spotify for Flipper Zero
 
-Browse your playlists, queue a song, or hold a Flipper button to play a favorite playlist. The Eddy iPhone app connects your Spotify account to your Flipper over Bluetooth.
+I built this so I could queue the next song without taking my iPhone out of my pocket. Eddy connects my Flipper to my phone over Bluetooth so I can browse Liked Songs, add tracks to a playlist, or hold an arrow to start a favorite playlist.
 
 [![Spotify playlists on a Flipper Zero, with Dolphin Days playing](demo/preview-playlists.webp)](https://mht3.github.io/eddy-firmware/spotify-demo/)
 
@@ -10,8 +10,12 @@ Browse your playlists, queue a song, or hold a Flipper button to play a favorite
 2. Select **Spotify** under **Extras** and install Eddy Firmware. [Open the installer](https://mht3.github.io/eddy-firmware/update/)
 3. On your Flipper, open **Apps → Spotify** and scan the QR code. On your iPhone, open Eddy, connect your Flipper, and enter your Client ID when you log in. [Get the Eddy iPhone app](https://mht3.github.io/eddy-firmware/app/)
 
-Eddy Firmware builds this app from a pinned Git submodule. To build the bundled version, run `./fbt fap_eddy_spotify` from an Eddy Firmware checkout. The app uses Eddy’s Bluetooth service.
+#### Acknowledgements
 
-Eddy Firmware grew out of Momentum and the original Flipper Zero firmware. [Eddy Firmware](https://github.com/mht3/eddy-firmware) · [Momentum](https://github.com/Next-Flip/Momentum-Firmware) · [Flipper Zero](https://github.com/flipperdevices/flipperzero-firmware)
+Thank you to the Momentum and Flipper Zero contributors whose work made Eddy Firmware possible, and to Nocturne for inspiring the iPhone companion. [Eddy Firmware](https://github.com/mht3/eddy-firmware) · [Momentum Firmware](https://github.com/Next-Flip/Momentum-Firmware) · [Flipper Zero firmware](https://github.com/flipperdevices/flipperzero-firmware) · [Nocturne](https://usenocturne.com/app)
+
+#### Donations
+
+If Eddy has found a home on your Flipper, you can support me with a donation on Ko-fi. Donations help me stay a float as a PhD student :)
 
 [Buy me a Coffee](https://ko-fi.com/mhtaylor)
