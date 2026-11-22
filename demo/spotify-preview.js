@@ -8,9 +8,6 @@ const songEntry=id=>entry('song',songs[id].title,songs[id].art,id);
 const view=(kind,title,value)=>({kind,title,value,row:0});
 const current=s=>s.views.at(-1);
 const open=(s,kind,title,value)=>s.views.push(view(kind,title,value));
-const actions=['Add to playlist','Volume'];
-const volumeTop=15, volumeBottom=56;
-
 const directions=['up','right','down','left'];
 const directionLabels={up:'↑ Up',right:'→ Right',down:'↓ Down',left:'← Left'};
 const presetStorage='eddy-spotify-demo-presets-v1';
@@ -38,7 +35,7 @@ function playPreset(s,dir) {
   if(!playlist?.tracks.length) {notify(s,'Set a preset in Playlists'); return;}
   const [first,...rest]=playlist.tracks;
   s.previous.push(s.track); s.queue=rest.map(id=>({id})); play(s,first);
-  openSpotifyPlayer(s); current(s).toolbar=false;
+  openSpotifyPlayer(s);
   notify(s,playlist.name);
 }
 
@@ -52,7 +49,7 @@ export function openSpotifyDemo(session,{persistPresets=true}={}) {
   const playlists=samplePlaylists();
   return {page:'spotify',row:0,views:[view('home','Spotify demo')],playlists,persistPresets,
     presets:persistPresets?readPresets(playlists):{},
-    track:0,queue:[{id:1},{id:2}],previous:[],playing:true,started:now(),elapsed:21,volume:60,action:1,notice:'',noticeUntil:0};
+    track:0,queue:[{id:1},{id:2}],previous:[],playing:true,started:now(),elapsed:21,notice:'',noticeUntil:0};
 }
 
 export function openSpotifyPlayer(s) {
@@ -123,7 +120,16 @@ function select(s,item) {
     case 'assignPlaylist': setPreset(s,v.value,s.playlists[item.value]); s.views.pop(); s.views.pop(); break;
     case 'playPreset': playPreset(s,v.value); break;
     case 'clearPreset': setPreset(s,v.value,null); s.views.pop(); break;
-    case 'play': s.previous.push(s.track); play(s,v.value); openSpotifyPlayer(s); break;
+    case 'play': {
+      const list=s.views.at(-2);
+      if(list.kind==='playlist' || list.kind==='album') {
+        const tracks=list.kind==='playlist'?s.playlists[list.value].tracks:
+          songs.flatMap((song,id)=>song.album===list.value?[id]:[]);
+        s.queue=tracks.slice(list.row+1).map(id=>({id}));
+      }
+      s.previous.push(s.track); play(s,v.value);
+      s.views.pop(); openSpotifyPlayer(s); break;
+    }
     case 'enqueue': s.queue.push({id:v.value}); notify(s,'Added to queue'); break;
     case 'queued': open(s,'queuedSong',songs[item.value.id].title,item.value); break;
     case 'destinations': open(s,item.action,item.label,v.value); break;
@@ -154,17 +160,6 @@ function activate(s) {
   } else select(s,menu(s)[v.row]);
 }
 
-function playerAction(s) {
-  if(s.action===0) open(s,'destinations','Add to playlist',s.track);
-  else open(s,'volume','Volume');
-}
-
-export function spotifyVolumeAt(s,x,y,dragging=false) {
-  if(current(s).kind!=='volume' || (!dragging && (x<5 || x>53 || y<12 || y>60))) return false;
-  s.volume=Math.max(0,Math.min(100,Math.round(100*(volumeBottom-y)/(volumeBottom-volumeTop))));
-  return true;
-}
-
 export function spotifyKey(s,key) {
   const v=current(s);
   s.notice='';
@@ -177,7 +172,7 @@ export function spotifyKey(s,key) {
     if(!directions.includes(dir)) return true;
     if(v.kind==='assign') { setPreset(s,dir,s.playlists[v.value]); s.views.pop(); }
     else if(v.kind==='playlists' && !s.presets[dir]) setPreset(s,dir,s.playlists[v.row]);
-    else if(!['setup','volume','presetSlot','choosePreset','presets'].includes(v.kind)) playPreset(s,dir);
+    else if(!['setup','presetSlot','choosePreset','presets'].includes(v.kind)) playPreset(s,dir);
     return true;
   }
   if(key==='back' || (v.kind==='setup' && key==='ok')) {
@@ -189,22 +184,11 @@ export function spotifyKey(s,key) {
     if(directions.includes(key)) {setPreset(s,key,s.playlists[v.value]); s.views.pop();}
     return true;
   }
-  if(v.kind==='volume') {
-    if(key==='ok') s.views.pop();
-    else if(key==='up' || key==='down') s.volume=Math.max(0,Math.min(100,s.volume+(key==='up'?5:-5)));
-    return true;
-  }
   if(v.kind==='player') {
     const at=position(s);
-    if(v.toolbar) {
-      if(key==='up') v.toolbar=false;
-      else if(key==='left' || key==='right') s.action=1-s.action;
-      else if(key==='ok') playerAction(s);
-      return true;
-    }
     if(key==='ok') { s.elapsed=at>=songs[s.track].seconds?0:at; s.started=now(); s.playing=!s.playing; }
     else if(key==='left' || key==='right') changeTrack(s,key,at);
-    else if(key==='down') v.toolbar=true;
+    else if(key==='down') open(s,'destinations','Add to playlist',s.track);
     else if(key==='up') open(s,'lyrics','Lyrics');
     return true;
   }
@@ -228,15 +212,10 @@ export function spotifyHit(s,x,y) {
     if(y>=13 && y<61) return spotifyKey(s,directions[Math.floor((y-13)/12)]);
     return true;
   }
-  if(v.kind==='volume') {
-    if(!spotifyVolumeAt(s,x,y) && x>=50 && y>=52) spotifyKey(s,'ok');
-    return true;
-  }
   if(v.kind==='player') {
-    if(y>=50) { v.toolbar=true; s.action=x<64?0:1; playerAction(s); }
+    if(y>=50) return spotifyKey(s,x<64?'down':'up');
     else if(y>=39) {
-      v.toolbar=false;
-      return spotifyKey(s,x<29?'left':x<65?'ok':x<92?'right':'up');
+      return spotifyKey(s,x<42?'left':x<86?'ok':'right');
     } else if(y>=30) {
       position(s);
       s.elapsed=Math.min(songs[s.track].seconds,Math.max(0,(x-2)/123*songs[s.track].seconds)); s.started=now();
@@ -258,9 +237,8 @@ export function spotifyStatus(s) {
   const at=position(s), v=current(s), active=songs[s.track];
   if(v.kind==='setup') return 'On your Flipper, scan the QR code to open Eddy on your iPhone. This demo uses a sample library. Press OK to return.';
   const playing=(s.playing?'Playing ':'Paused on ')+active.title+' by '+active.artist;
-  if(v.kind==='volume') return 'Volume '+s.volume+' percent. Up and Down adjust. OK returns to the player.';
-  if(v.kind==='player') return [now()<s.noticeUntil?s.notice:'',playing,v.toolbar?actions[s.action]+'. Left or Right selects an action. OK opens it. Up returns to playback.':
-    'OK pauses or plays. Left restarts or goes back. Right skips. Up opens lyrics. Down selects player actions.'].filter(Boolean).join('. ');
+  if(v.kind==='player') return [now()<s.noticeUntil?s.notice:'',playing,
+    'OK pauses or plays. Left restarts or goes back. Right skips. Down saves to a playlist. Up opens sample lyrics.'].filter(Boolean).join('. ');
   if(v.kind==='lyrics') {
     const line=active.cues[lyricLine(active,at)][1];
     return 'Sample lyrics for '+active.title+'. '+line+'. Left restarts or goes back. Right skips. Down or Back returns to Now Playing. '+playing+'.';
@@ -292,7 +270,7 @@ function footer(ctx,s,at) {
   ctx.restore();
 }
 
-function drawPlayer(ctx,s,v,at) {
+function drawPlayer(ctx,s,at) {
   const track=songs[s.track];
   drawIcon(ctx,track.art,3,13,2);
   ctx.font='bold 10px sans-serif'; cropped(ctx,track.title,24,21,101);
@@ -300,28 +278,12 @@ function drawPlayer(ctx,s,v,at) {
   ctx.font='7px monospace'; ctx.fillText(clock(at),104,30);
   ctx.fillRect(2,34,124,1);
   ctx.fillRect(2,33,Math.max(2,Math.round(124*at/track.seconds)),3);
-  ctx.font='bold 8px sans-serif';
-  ctx.fillText('‹ Prev',2,46); ctx.fillText(s.playing?'Ⅱ Pause':'▷ Play',31,46);
-  ctx.fillText('Next ›',66,46); ctx.fillText('↑ Lyrics',95,46);
-  for(let i=0;i<actions.length;i++) {
-    const x=1+i*64, width=61;
-    ctx.save(); ctx.beginPath(); ctx.roundRect(x+.5,50.5,width,12,3);
-    if(v.toolbar && i===s.action) { ctx.fill(); ctx.globalCompositeOperation='destination-out'; }
-    else { ctx.lineWidth=1; ctx.stroke(); }
-    ctx.textAlign='center'; ctx.fillText(actions[i],x+width/2,59.5);
-    ctx.restore();
-  }
-}
-
-function drawVolume(ctx,s) {
-  const y=volumeBottom-(volumeBottom-volumeTop)*s.volume/100;
   ctx.save();
-  ctx.lineWidth=1; ctx.strokeRect(22.5,volumeTop+.5,6,volumeBottom-volumeTop);
-  ctx.fillRect(24,y,4,volumeBottom-y);
-  ctx.fillRect(17,Math.round(y)-1,18,3);
-  ctx.font='bold 15px sans-serif'; ctx.fillText(s.volume+'%',52,31);
-  ctx.font='8px sans-serif'; ctx.fillText('↑ Louder',53,41); ctx.fillText('↓ Softer',53,50);
-  ctx.fillText('OK  Done',53,61); ctx.restore();
+  ctx.textAlign='center'; ctx.font='bold 9px sans-serif';
+  ctx.fillText('‹',22,46); ctx.fillText(s.playing?'Ⅱ':'▷',64,46); ctx.fillText('›',106,46);
+  ctx.font='8px sans-serif';
+  ctx.fillText('↓ Save',30,60); ctx.fillText('↑ Demo lyrics',91,60);
+  ctx.restore();
 }
 
 export function drawSpotify(ctx,s) {
@@ -341,9 +303,7 @@ export function drawSpotify(ctx,s) {
     ctx.font='bold 8px sans-serif';
     directions.forEach((dir,i)=>cropped(ctx,presetLabel(s,dir),4,22+i*12,120));
   } else if(v.kind==='player') {
-    drawPlayer(ctx,s,v,at);
-  } else if(v.kind==='volume') {
-    drawVolume(ctx,s);
+    drawPlayer(ctx,s,at);
   } else if(v.kind==='lyrics') {
     const song=songs[s.track], cues=song.cues;
     const lineIndex=lyricLine(song,at);
@@ -374,7 +334,7 @@ export function drawSpotify(ctx,s) {
       ctx.font='8px sans-serif'; ctx.fillText('Your queue is empty',4,37);
     }
   }
-  if(!['player','volume','assign','lyrics'].includes(v.kind)) footer(ctx,s,at);
+  if(!['player','assign','lyrics'].includes(v.kind)) footer(ctx,s,at);
   if(s.notice && now()<s.noticeUntil) {
     ctx.save();ctx.fillRect(1,35,125,14);ctx.globalCompositeOperation='destination-out';ctx.font='bold 8px sans-serif';cropped(ctx,s.notice,5,45,117);ctx.restore();
   }

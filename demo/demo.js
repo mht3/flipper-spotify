@@ -1,4 +1,4 @@
-import {drawSpotify, openSpotifyDemo, openSpotifyPlayer, spotifyHit, spotifyKey, spotifyStatus, spotifyVolumeAt} from './spotify-preview.js';
+import {drawSpotify, openSpotifyDemo, openSpotifyPlayer, spotifyHit, spotifyKey, spotifyStatus} from './spotify-preview.js';
 import {spotifyTourSteps, startSpotifyTour} from './spotify-tour.js';
 
 const params = new URLSearchParams(location.search);
@@ -35,7 +35,6 @@ function draw() {
   context.clearRect(0, 0, 128, 64);
   context.fillStyle = context.strokeStyle = '#32291e';
   context.imageSmoothingEnabled = false;
-  lcd.classList.toggle('volume', session().views.at(-1).kind === 'volume');
   if (drawSpotify(context, session())) redrawTimer = setTimeout(draw, 500);
 }
 
@@ -151,30 +150,10 @@ function point(event) {
   return [(event.clientX - box.left) * 128 / box.width, (event.clientY - box.top) * 64 / box.height];
 }
 
-let sliding, consumed = false;
-lcd.addEventListener('pointerdown', event => {
-  if (!event.isPrimary || event.button !== 0 || tour) return;
-  consumed = false;
-  if (!spotifyVolumeAt(freePlay, ...point(event))) return;
-  sliding = event.pointerId;
-  lcd.setPointerCapture(sliding);
-  draw();
-});
-lcd.addEventListener('pointermove', event => {
-  if (event.pointerId === sliding && spotifyVolumeAt(freePlay, ...point(event), true)) draw();
-});
-function endSlide(event) {
-  if (event.pointerId !== sliding) return;
-  sliding = undefined;
-  consumed = true;
-  update();
-}
-for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) lcd.addEventListener(type, endSlide);
 lcd.addEventListener('click', event => {
   if (tour) {
     hint.textContent = tour.complete ? 'Tap Explore freely to keep playing.' : 'Use the highlighted button on the Flipper.';
-  } else if (consumed) consumed = false;
-  else if (spotifyHit(freePlay, ...point(event))) update();
+  } else if (spotifyHit(freePlay, ...point(event))) update();
 });
 
 new ResizeObserver(draw).observe(lcd);
