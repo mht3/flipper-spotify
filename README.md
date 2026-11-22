@@ -20,4 +20,4 @@ Thank you to the Momentum and Flipper Zero contributors whose work made Eddy Fir
 
 If Eddy has found a home on your Flipper, you can support me with a donation on Ko-fi. Donations help me stay a float as a PhD student :)
 
-[Buy me a Coffee](https://ko-fi.com/mhtaylor)
+[Donate](https://ko-fi.com/mhtaylor)
