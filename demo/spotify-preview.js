@@ -300,9 +300,17 @@ function drawPlayer(ctx,s,at) {
   ctx.fillRect(2,33,Math.max(2,Math.round(124*at/track.seconds)),3);
   ctx.save();
   ctx.textAlign='center'; ctx.font='bold 9px sans-serif';
-  ctx.fillText('‹',22,46); ctx.fillText(s.playing?'Ⅱ':'▷',64,46); ctx.fillText('›',106,46);
+  ctx.fillText('‹',22,46); ctx.fillText('›',106,46);
+  if(s.playing) {
+    ctx.fillRect(60,39,3,9); ctx.fillRect(65,39,3,9);
+  } else {
+    for(let i=0;i<5;i++) ctx.fillRect(62+i,39+i,1,9-2*i);
+  }
   ctx.font='8px sans-serif';
-  ctx.fillText('↓ Save',30,60); ctx.fillText('↑ Demo lyrics',91,60);
+  ctx.fillText('↓',23,60);
+  ctx.beginPath(); ctx.arc(34,57,5,0,2*Math.PI); ctx.strokeStyle=ctx.fillStyle; ctx.lineWidth=1; ctx.stroke();
+  ctx.fillRect(32,57,5,1); ctx.fillRect(34,55,1,5);
+  ctx.fillText('↑ Demo lyrics',91,60);
   ctx.restore();
 }
 

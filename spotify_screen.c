@@ -149,18 +149,26 @@ static void draw_player(Canvas* canvas, const SpotifyScreen* screen) {
     }
 
     // The glyphs mirror Left, OK and Right on the physical D-pad.
-    canvas_draw_line(canvas, 5, 54, 5, 61);
+    canvas_draw_line(canvas, 32, 54, 32, 60);
     for(int i = 0; i < 4; ++i)
-        canvas_draw_line(canvas, 10 - i, 54 + i, 10 - i, 61 - i);
-    canvas_draw_str(canvas, 17, 61, screen->play_state == 1 ? "OK Pause" : "OK Play");
+        canvas_draw_line(canvas, 37 - i, 54 + i, 37 - i, 60 - i);
+    if(screen->play_state == 1) {
+        canvas_draw_box(canvas, 60, 53, 3, 9);
+        canvas_draw_box(canvas, 65, 53, 3, 9);
+    } else {
+        for(int i = 0; i < 5; ++i)
+            canvas_draw_line(canvas, 62 + i, 53 + i, 62 + i, 61 - i);
+    }
     for(int i = 0; i < 4; ++i)
-        canvas_draw_line(canvas, 63 + i, 54 + i, 63 + i, 61 - i);
-    canvas_draw_line(canvas, 68, 54, 68, 61);
+        canvas_draw_line(canvas, 90 + i, 54 + i, 90 + i, 60 - i);
+    canvas_draw_line(canvas, 95, 54, 95, 60);
     if(screen->now_playing[0]) {
-        canvas_draw_line(canvas, 95, 54, 95, 60);
-        canvas_draw_line(canvas, 92, 57, 95, 60);
-        canvas_draw_line(canvas, 95, 60, 98, 57);
-        canvas_draw_str(canvas, 101, 61, "Save");
+        canvas_draw_line(canvas, 109, 54, 109, 60);
+        canvas_draw_line(canvas, 106, 57, 109, 60);
+        canvas_draw_line(canvas, 109, 60, 112, 57);
+        canvas_draw_circle(canvas, 120, 57, 5);
+        canvas_draw_line(canvas, 118, 57, 122, 57);
+        canvas_draw_line(canvas, 120, 55, 120, 59);
     }
 }
 
