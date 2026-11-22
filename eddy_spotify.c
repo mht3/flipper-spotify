@@ -653,8 +653,7 @@ static uint8_t* read_signin_qr(void) {
     Storage* storage = furi_record_open(RECORD_STORAGE);
     File* file = storage_file_alloc(storage);
     uint8_t* qr = NULL;
-    if(storage_file_open(
-           file, APP_ASSETS_PATH("iphone_app.xbm"), FSAM_READ, FSOM_OPEN_EXISTING) &&
+    if(storage_file_open(file, APP_ASSETS_PATH("iphone_app.xbm"), FSAM_READ, FSOM_OPEN_EXISTING) &&
        storage_file_size(file) == SpotifyQrBytes) {
         qr = malloc(SpotifyQrBytes);
         if(qr && (storage_file_read(file, qr, SpotifyQrBytes) != SpotifyQrBytes ||
