@@ -12,6 +12,8 @@ I built this so I could queue the next song without taking my iPhone out of my p
 
 #### Acknowledgements
 
+Original Eddy code © 2026 mht3 and contributors. Keep the copyright and license notices when redistributing it. [GNU GPLv3](LICENSE)
+
 Thank you to the Momentum and Flipper Zero contributors whose work made Eddy Firmware possible, and to Nocturne for inspiring the iPhone companion. [Eddy Firmware](https://github.com/mht3/eddy-firmware) · [Momentum Firmware](https://github.com/Next-Flip/Momentum-Firmware) · [Flipper Zero firmware](https://github.com/flipperdevices/flipperzero-firmware) · [Nocturne](https://usenocturne.com/app)
 
 #### Donations
