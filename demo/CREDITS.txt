@@ -1,0 +1,13 @@
+The Flipper Zero enclosure and controls are based on the GPLv3 exterior STEP
+model by Flipper Devices Inc. Eddy Firmware contributors converted and rendered
+the model. face.webp is their front view, used here with the same button and
+screen coordinates. The repository LICENSE includes the GPLv3 terms.
+
+Eddy image and adapted model source
+https://github.com/mht3/eddy-firmware/tree/dev/website/models
+
+Original editable geometry
+https://github.com/flipperdevices/flipperzero-3d-models/blob/dff3b17f58a3ec59b8d7104d6c37f450691758a4/flipper-zero/body-3d/flipper-zero-body-3d.stp
+
+The sample songs, timed lyrics, and playlist art were created for Eddy's
+interactive demo.

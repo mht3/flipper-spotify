@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Spotify demo · Eddy</title>
+  <link rel="stylesheet" href="./demo.css">
+  <script type="module" src="./demo.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Spotify demo</h1>
+    <p class="intro">Explore a sample library. Press <strong>OK</strong> for playlists or <strong>Right</strong> for Now Playing.</p>
+    <section id="device" aria-label="Interactive Flipper Zero">
+      <div class="device-body">
+        <img src="./face.webp" width="1728" height="864" alt="" draggable="false">
+        <div class="controls">
+          <canvas id="lcd" width="128" height="64" aria-hidden="true"></canvas>
+          <button type="button" data-key="up" aria-label="Up">↑</button>
+          <button type="button" data-key="left" aria-label="Left">←</button>
+          <button type="button" data-key="ok" aria-label="OK">OK</button>
+          <button type="button" data-key="right" aria-label="Right">→</button>
+          <button type="button" data-key="down" aria-label="Down">↓</button>
+          <button type="button" data-key="back" aria-label="Back">Back</button>
+        </div>
+      </div>
+    </section>
+    <p id="player-status" class="visually-hidden" role="status" aria-atomic="true"></p>
+    <div class="actions">
+      <button type="button" id="tour-start" class="primary">Start guided tour</button>
+      <button type="button" id="zoom" aria-pressed="false">Enlarge screen</button>
+    </div>
+    <section id="lesson" hidden aria-labelledby="lesson-title">
+      <div aria-live="polite" aria-atomic="true">
+        <p id="lesson-step"></p>
+        <h2 id="lesson-title"></h2>
+        <p id="lesson-instruction"></p>
+      </div>
+      <progress id="progress" aria-label="Tour progress"></progress>
+      <p id="lesson-hint" role="status"></p>
+      <div class="actions">
+        <button type="button" id="retry">Repeat step</button>
+        <button type="button" id="exit">Explore freely</button>
+      </div>
+    </section>
+    <noscript>This interactive demo needs JavaScript.</noscript>
+  </main>
+</body>
+</html>

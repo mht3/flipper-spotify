@@ -6,6 +6,7 @@ App(
     requires=["bt"],
     targets=["f7"],
     stack_size=3072,
+    sources=["*.c", "*.cpp"],
     fap_category="Media",
     fap_version=(0, 1),
     fap_icon="spotify.png",
