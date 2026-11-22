@@ -1,0 +1,16 @@
+App(
+    appid="flipper_spotify",
+    name="Spotify",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="eddy_spotify_app",
+    requires=["bt"],
+    targets=["f7"],
+    stack_size=3072,
+    fap_category="Media",
+    fap_version=(0, 1),
+    fap_icon="spotify.png",
+    fap_file_assets="assets",
+    fap_description="Browse and control Spotify with the Eddy iPhone companion.",
+    fap_author="Matt Taylor",
+    fap_weburl="https://github.com/mht3/flipper-spotify",
+)
