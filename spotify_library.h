@@ -32,6 +32,8 @@ enum {
     SpotifyReadPresets = 0x64,
     SpotifyClearPreset = 0x68,
     SpotifyHoldPlaylist = 0x70,
+    SpotifyAssignLiked = 0x80,
+    SpotifyHoldLiked = 0x84,
     SpotifySignIn = 0xf0,
     SpotifyHello = 0x15,
     SpotifyClear = 0x16,

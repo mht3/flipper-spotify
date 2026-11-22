@@ -3,11 +3,11 @@
 #include <toolbox/eddy_media_label.h>
 
 const char* const spotify_category_names[SpotifyCategories] =
-    {"Playlists", "Queue", "Liked Songs", "Albums", "Now playing", "Presets", "Sign in"};
+    {"Playlists", "Liked Songs", "Queue", "Albums", "Now playing", "Presets", "Sign in"};
 const uint8_t spotify_category_ops[SpotifyCategories] = {
     SpotifyPlaylists,
-    SpotifyViewQueue,
     SpotifyLiked,
+    SpotifyViewQueue,
     SpotifyAlbums,
     SpotifyNowPlaying,
     SpotifyReadPresets,
@@ -17,7 +17,8 @@ bool spotify_library_action_unconfirmed(const SpotifyLibrary* lib) {
     // An interrupted response can follow a successful mutation. A fresh request could repeat it.
     if(lib->error != SpotifyOffline && lib->error != SpotifyInvalid) return false;
     uint8_t action = lib->op & 0xfc;
-    return (lib->op >= SpotifyHoldPlaylist && lib->op < SpotifyHoldPlaylist + 16) ||
+    return action == SpotifyHoldLiked ||
+           (lib->op >= SpotifyHoldPlaylist && lib->op < SpotifyHoldPlaylist + 16) ||
            action == SpotifyQueue || action == SpotifyAddToPlaylist || action == SpotifyPlay ||
            (lib->op >= SpotifyPlayerPrevious && lib->op <= SpotifyPlayerNext);
 }
@@ -50,7 +51,9 @@ void spotify_library_receive(SpotifyLibrary* lib, const uint8_t* data, size_t si
     bool transport = lib->op >= SpotifyPlayerPrevious && lib->op <= SpotifySetVolume;
     bool preset_assignment = lib->op >= SpotifyAssignPreset && lib->op < SpotifyPlayPreset;
     bool held_playlist = lib->op >= SpotifyHoldPlaylist && lib->op < SpotifyHoldPlaylist + 16;
-    bool standalone_ack = transport || action == SpotifyPlayPreset || action == SpotifyClearPreset;
+    bool standalone_ack = transport || action == SpotifyPlayPreset ||
+                          action == SpotifyClearPreset || action == SpotifyAssignLiked ||
+                          action == SpotifyHoldLiked;
     bool acknowledgement = standalone_ack || preset_assignment || held_playlist ||
                            action == SpotifyPlay || action == SpotifyQueue ||
                            action == SpotifyAddToPlaylist;
@@ -110,7 +113,7 @@ void spotify_library_receive(SpotifyLibrary* lib, const uint8_t* data, size_t si
     case 0x14: {
         if(!acknowledgement || size != 4) break;
         uint8_t row = data[3];
-        if(held_playlist) {
+        if(held_playlist || action == SpotifyHoldLiked) {
             if(row >= 8) break;
             lib->preset_played = row >= 4;
             row %= 4;

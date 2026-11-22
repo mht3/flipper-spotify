@@ -11,22 +11,23 @@ typedef struct {
     SpotifyLibrary status;
     SpotifyLibrary presets;
     uint16_t suppressed_keys;
-    uint32_t volume_changed;
     uint8_t collection_row;
     uint8_t track_row;
     SpotifyScene player_origin;
+    SpotifyScene preset_origin;
     uint8_t origin_row;
     bool chooser_for_player;
     bool chooser_has_parent;
-    uint8_t volume_sent;
     uint32_t status_started;
     uint32_t status_received;
+    uint32_t progress_at_update;
     uint16_t connection;
     uint8_t peer[GAP_MAC_ADDR_SIZE];
     uint8_t queued;
     uint32_t started;
     uint32_t seen;
     uint32_t scroll_start;
+    uint32_t notice_started;
 } SpotifyModel;
 
 typedef struct {
@@ -52,12 +53,10 @@ static void bridge_reset(SpotifyModel* model, bool connected) {
     screen->library = (SpotifyLibrary){0};
     model->status = (SpotifyLibrary){0};
     screen->now_playing[0] = 0;
+    screen->notice = NULL;
     screen->play_state = 0;
-    screen->volume = SpotifyVolumeUnknown;
-    screen->volume_pending = screen->toolbar_focus = false;
     screen->presets_loaded = false;
     model->presets = (SpotifyLibrary){0};
-    screen->volume_selected = true;
     model->chooser_for_player = false;
     screen->title_bytes = 0;
     screen->duration_s = screen->elapsed_s = 0;
@@ -71,7 +70,6 @@ static void open_player(SpotifyModel* model) {
     SpotifyScreen* screen = &model->screen;
     model->player_origin = screen->scene;
     model->origin_row = screen->library.selected;
-    screen->toolbar_focus = false;
     screen->scene = SpotifyPlayer;
     model->queued = SpotifyNowPlaying;
 }
@@ -84,6 +82,32 @@ static void close_player_destinations(SpotifyModel* model) {
         model->screen.library = (SpotifyLibrary){0};
         model->screen.scene = SpotifyPlayer;
         model->queued = SpotifyClear;
+    }
+}
+
+static void finish_edit(SpotifyModel* model) {
+    SpotifyScreen* screen = &model->screen;
+    SpotifyLibrary* lib = &screen->library;
+    uint8_t action = lib->op & 0xfc;
+    lib->accepted = false;
+    screen->notice = action == SpotifyQueue         ? "Added to queue" :
+                     action == SpotifyAddToPlaylist ? "Added to playlist" :
+                     action == SpotifyClearPreset   ? "Preset cleared" :
+                                                      "Preset saved";
+    model->notice_started = furi_get_tick();
+    if(screen->scene == SpotifyPresetPick || screen->scene == SpotifyPresetManage) {
+        screen->scene = SpotifyPresets;
+        *lib = (SpotifyLibrary){0};
+        model->queued = SpotifyReadPresets;
+    } else if(screen->scene == SpotifyDestinations) {
+        if(model->chooser_for_player)
+            close_player_destinations(model);
+        else
+            model->queued = SpotifyParent;
+    } else if(screen->scene == SpotifyPresetDirection) {
+        screen->scene = model->preset_origin;
+    } else if(screen->scene == SpotifyActions) {
+        screen->scene = SpotifyResults;
     }
 }
 
@@ -100,6 +124,7 @@ static void spotify_event(BleMediaEvent event, const void* data, size_t size, vo
     if(event != BleMediaFrame && event != BleMediaLink) return;
     if(event == BleMediaFrame && !bt_get_connected_peer_address(app->bt, peer)) return;
     SpotifyModel* model = view_get_model(app->view);
+    bool redraw = false;
     if(event == BleMediaLink) {
         reset_link(model, *(const uint16_t*)data);
     } else if(model->screen.connected && !memcmp(model->peer, peer, sizeof(peer)) && size) {
@@ -130,16 +155,13 @@ static void spotify_event(BleMediaEvent event, const void* data, size_t size, vo
                 spotify_library_receive(status, packet, size);
                 if(!status->request) {
                     model->status_received = furi_get_tick();
+                    model->progress_at_update = status->progress_ms / 1000;
                     model->screen.play_state = status->error ? 0 : status->play_state;
                     model->screen.title_bytes = status->title_bytes;
-                    if(!(lib->request && lib->op == SpotifySetVolume) &&
-                       model->queued != SpotifySetVolume) {
-                        model->screen.volume = status->error ? SpotifyVolumeUnknown :
-                                                               status->volume;
-                        model->screen.volume_pending = false;
-                    }
                     model->screen.duration_s =
                         !status->error && status->count ? status->duration_ms / 1000 : 0;
+                    model->screen.elapsed_s =
+                        MIN(model->progress_at_update, model->screen.duration_s);
                     strlcpy(
                         model->screen.now_playing,
                         status->error || !status->count ? "" : status->rows[0],
@@ -153,26 +175,18 @@ static void spotify_event(BleMediaEvent event, const void* data, size_t size, vo
                        ((lib->op & 0xfc) == SpotifyPlayPreset || lib->preset_played)) {
                         lib->accepted = false;
                         if(model->screen.scene != SpotifyPlayer) open_player(model);
-                        model->screen.toolbar_focus = false;
                         model->queued = SpotifyNowPlaying;
-                    } else if(lib->error && lib->op == SpotifySetVolume) {
-                        model->screen.volume_pending = false;
-                        if(lib->error == SpotifyVolumeUnavailable) {
-                            model->screen.volume = SpotifyVolumeUnknown;
-                            lib->error = SpotifyOk;
-                        }
-                    } else if(!lib->error && lib->op == SpotifySetVolume) {
-                        lib->accepted = false;
-                        model->queued = model->screen.volume_target == model->volume_sent ?
-                                            SpotifyNowPlaying :
-                                            SpotifySetVolume;
                     } else if(!lib->error && lib->accepted && (lib->op & 0xfc) == SpotifyPlay) {
-                        model->queued = SpotifyNowPlaying;
+                        lib->accepted = false;
+                        model->screen.scene = SpotifyResults;
+                        open_player(model);
                     } else if(
                         !lib->error && lib->op >= SpotifyPlayerPrevious &&
                         lib->op <= SpotifyPlayerNext) {
                         lib->accepted = false;
                         model->queued = SpotifyNowPlaying;
+                    } else if(!lib->error && lib->accepted) {
+                        finish_edit(model);
                     } else if(!lib->error && lib->op == SpotifyChooseCurrent) {
                         model->chooser_for_player = true;
                         model->screen.scene = SpotifyDestinations;
@@ -201,10 +215,12 @@ static void spotify_event(BleMediaEvent event, const void* data, size_t size, vo
                 view_commit_model(app->view, false);
                 return;
             }
+            redraw = token != model->presets.request && token != model->status.request &&
+                     token != lib->request;
             model->seen = furi_get_tick();
         }
     }
-    view_commit_model(app->view, false);
+    view_commit_model(app->view, redraw);
 }
 
 static void spotify_tick(void* context) {
@@ -228,19 +244,23 @@ static void spotify_tick(void* context) {
     }
     if(lib->request && now - model->started > furi_ms_to_ticks(20000))
         spotify_library_fail(lib, SpotifyOffline);
-    if(model->status.request && now - model->status_started > furi_ms_to_ticks(20000)) {
+    if(model->status.request && now - model->status_started > furi_ms_to_ticks(20000))
         spotify_library_fail(&model->status, SpotifyOffline);
-        model->screen.volume_pending = false;
-        model->screen.volume = SpotifyVolumeUnknown;
-    }
+    if(model->screen.notice && now - model->notice_started >= furi_ms_to_ticks(1600))
+        model->screen.notice = NULL;
     if(model->screen.bridge && now - model->seen > furi_ms_to_ticks(45000))
         bridge_reset(model, false);
+    uint32_t refresh_ms = 30000;
+    if(model->screen.scene == SpotifyPlayer) {
+        bool at_end = model->screen.play_state == 1 && model->screen.duration_s &&
+                      model->screen.elapsed_s >= model->screen.duration_s;
+        refresh_ms = at_end ? 4000 : 15000;
+    }
     if(model->screen.bridge && !model->queued && !model->status.request &&
        !model->presets.request && !lib->request &&
-       now - model->status_started >= furi_ms_to_ticks(30000))
+       now - model->status_started >= furi_ms_to_ticks(refresh_ms))
         model->queued = SpotifyNowPlaying;
     uint8_t op = model->queued;
-    if(op == SpotifySetVolume && now - model->volume_changed < furi_ms_to_ticks(250)) op = 0;
     uint16_t request = 0, page = 0;
     uint16_t handle = model->connection;
     if(op && model->screen.connected) {
@@ -261,7 +281,6 @@ static void spotify_tick(void* context) {
                (op >= SpotifyAssignPreset && op < SpotifyPlayPreset) ||
                (op >= SpotifyHoldPlaylist && op < SpotifyHoldPlaylist + 16))
                 page = lib->page;
-            if(op == SpotifySetVolume) page = model->volume_sent = model->screen.volume_target;
             if(op == SpotifyChooseCurrent) model->chooser_has_parent = lib->page != 0;
             spotify_library_begin(lib, op, request);
             model->started = now;
@@ -269,7 +288,7 @@ static void spotify_tick(void* context) {
     }
     if(op) model->queued = 0;
     if(model->screen.duration_s) {
-        uint32_t elapsed = model->status.progress_ms / 1000;
+        uint32_t elapsed = model->progress_at_update;
         if(model->screen.play_state == 1)
             elapsed += (now - model->status_received) / furi_ms_to_ticks(1000);
         model->screen.elapsed_s = MIN(elapsed, model->screen.duration_s);
@@ -287,11 +306,8 @@ static void spotify_tick(void* context) {
                 spotify_library_fail(&model->presets, SpotifyOffline);
                 presets_unavailable(model);
             }
-            if(model->status.request == request) {
+            if(model->status.request == request)
                 spotify_library_fail(&model->status, SpotifyOffline);
-                model->screen.volume = SpotifyVolumeUnknown;
-                model->screen.volume_pending = false;
-            }
             if(model->screen.library.request == request)
                 spotify_library_fail(&model->screen.library, SpotifyOffline);
             view_commit_model(app->view, true);
@@ -326,18 +342,10 @@ static bool browsable(SpotifyScene scene) {
            scene == SpotifyActions || scene == SpotifyPresets;
 }
 
-static void move_volume(SpotifyModel* model, bool up) {
-    SpotifyScreen* screen = &model->screen;
-    if(screen->volume > 100) return;
-    int current = screen->volume_pending ? model->screen.volume_target : screen->volume;
-    int target = current + (up ? 5 : -5);
-    if(target < 0) target = 0;
-    if(target > 100) target = 100;
-    if(target == current) return;
-    model->volume_changed = furi_get_tick();
-    model->screen.volume_target = target;
-    screen->volume_pending = true;
-    if(!screen->library.request) model->queued = SpotifySetVolume;
+static uint8_t assign_preset(const SpotifyScreen* screen, int direction) {
+    if(spotify_category_ops[screen->category] == SpotifyLiked)
+        return SpotifyAssignLiked + direction;
+    return SpotifyAssignPreset + direction * 4 + screen->library.selected;
 }
 
 static bool spotify_input(InputEvent* event, void* context) {
@@ -364,34 +372,38 @@ static bool spotify_input(InputEvent* event, void* context) {
     }
     bool busy = lib->request || (model->queued && model->queued != SpotifyNowPlaying &&
                                  model->queued != SpotifyReadPresets);
-    if(event->type == InputTypeLong && screen->scene != SpotifyVolume) {
+    bool liked_collection = op == SpotifyLiked &&
+                            (screen->scene == SpotifyHome || screen->scene == SpotifyResults);
+    bool highlighted_playlist = op == SpotifyPlaylists && screen->scene == SpotifyResults &&
+                                !screen->child_tracks && lib->count;
+    if(event->type == InputTypeLong) {
         model->suppressed_keys |= bit;
         if(screen->bridge && !busy && !lib->accepted && !lib->error && !screen->manual_setup) {
-            if(direction >= 0 && screen->scene == SpotifyPresetDirection && lib->count) {
+            if(direction >= 0 && screen->scene == SpotifyPresetDirection) {
                 screen->preset_direction = direction;
-                model->queued = SpotifyAssignPreset + direction * 4 + lib->selected;
-            } else if(
-                direction >= 0 && screen->scene == SpotifyResults && op == SpotifyPlaylists &&
-                !screen->child_tracks && lib->count) {
+                model->queued = assign_preset(screen, direction);
+            } else if(direction >= 0 && liked_collection) {
+                screen->preset_direction = direction;
+                model->queued = SpotifyHoldLiked + direction;
+            } else if(direction >= 0 && highlighted_playlist) {
                 screen->preset_direction = direction;
                 model->queued = SpotifyHoldPlaylist + direction * 4 + lib->selected;
             } else if(
                 direction >= 0 && (browsable(screen->scene) || screen->scene == SpotifyPlayer) &&
                 !model->chooser_for_player && screen->scene != SpotifyDestinations) {
                 model->queued = SpotifyPlayPreset + direction;
-            } else if(
-                key == InputKeyOk && screen->scene == SpotifyResults && op == SpotifyPlaylists &&
-                !screen->child_tracks && lib->count) {
+            } else if(key == InputKeyOk && (liked_collection || highlighted_playlist)) {
+                model->preset_origin = screen->scene;
                 screen->scene = SpotifyPresetDirection;
                 model->queued = SpotifyReadPresets;
             }
         }
+        bool dispatch = model->queued != 0;
         view_commit_model(app->view, true);
+        if(dispatch) spotify_tick(app);
         return true;
     }
-    if(event->type != InputTypeShort &&
-       !(screen->scene == SpotifyVolume && vertical &&
-         (event->type == InputTypeRepeat || event->type == InputTypeLong))) {
+    if(event->type != InputTypeShort) {
         view_commit_model(app->view, false);
         return false;
     }
@@ -410,21 +422,6 @@ static bool spotify_input(InputEvent* event, void* context) {
             close_player_destinations(model);
         else
             open_player(model);
-    } else if(lib->accepted && (key == InputKeyOk || key == InputKeyBack)) {
-        lib->accepted = false;
-        if(screen->scene == SpotifyPresetPick || screen->scene == SpotifyPresetManage) {
-            screen->scene = SpotifyPresets;
-            *lib = (SpotifyLibrary){0};
-            model->queued = SpotifyReadPresets;
-        } else if(screen->scene == SpotifyPresetDirection)
-            screen->scene = SpotifyResults;
-        else if(model->chooser_for_player && screen->scene == SpotifyDestinations)
-            close_player_destinations(model);
-        else if(screen->scene == SpotifyDestinations)
-            model->queued = SpotifyParent;
-        else if(screen->scene != SpotifyPlayer)
-            screen->scene = SpotifyResults;
-        model->scroll_start = furi_get_tick();
     } else if(spotify_library_action_unconfirmed(lib) && (key == InputKeyOk || key == InputKeyBack)) {
         lib->error = SpotifyOk;
         if(model->chooser_for_player && screen->scene == SpotifyDestinations)
@@ -433,7 +430,7 @@ static bool spotify_input(InputEvent* event, void* context) {
             model->queued = SpotifyParent;
         else if(screen->scene == SpotifyPlayer)
             model->queued = SpotifyNowPlaying;
-        else
+        else if(screen->scene == SpotifyActions)
             screen->scene = SpotifyResults;
     } else if(key == InputKeyBack) {
         if((screen->scene == SpotifyPresetDirection || screen->scene == SpotifyPresetManage) &&
@@ -441,29 +438,21 @@ static bool spotify_input(InputEvent* event, void* context) {
             // A slot mutation already dispatched must finish before the menu is restored.
         } else if(screen->scene == SpotifyPresetDirection) {
             lib->error = SpotifyOk;
-            screen->scene = SpotifyResults;
+            screen->scene = model->preset_origin;
         } else if(screen->scene == SpotifyPresetManage || screen->scene == SpotifyPresetPick) {
             *lib = (SpotifyLibrary){0};
             screen->scene = SpotifyPresets;
             model->queued = SpotifyReadPresets;
-        } else if(screen->scene == SpotifyVolume) {
-            screen->scene = SpotifyPlayer;
-            lib->error = SpotifyOk;
         } else if(screen->scene == SpotifyPlayer) {
             if(lib->request || (model->queued && model->queued != SpotifyNowPlaying)) {
                 // Keep a pending mutation tied to its originating page.
-            } else if(screen->toolbar_focus) {
-                screen->toolbar_focus = false;
-                lib->error = SpotifyOk;
             } else {
                 screen->scene = model->player_origin;
                 lib->error = SpotifyOk;
             }
         } else if(model->chooser_for_player && screen->scene == SpotifyDestinations && !lib->request) {
             close_player_destinations(model);
-        } else if(screen->scene == SpotifyLyricsHelp)
-            screen->scene = SpotifyPlayer;
-        else if(screen->scene == SpotifyHome && lib->error)
+        } else if(screen->scene == SpotifyHome && lib->error)
             lib->error = SpotifyOk;
         else if(screen->scene == SpotifyHome)
             handled = false;
@@ -480,14 +469,8 @@ static bool spotify_input(InputEvent* event, void* context) {
             screen->manual_setup = true;
         else
             handled = false;
-    } else if(lib->accepted) {
-        // Keep the receipt visible until OK or Back.
     } else if(lib->error && key == InputKeyOk) {
-        if(screen->scene == SpotifyVolume) {
-            lib->error = SpotifyOk;
-            model->queued = SpotifyNowPlaying;
-        } else
-            model->queued = lib->op;
+        model->queued = lib->op;
     } else if(screen->scene == SpotifyHome) {
         if(vertical) {
             screen->category =
@@ -507,46 +490,19 @@ static bool spotify_input(InputEvent* event, void* context) {
             }
         } else
             handled = false;
-    } else if(screen->scene == SpotifyLyricsHelp) {
-        if(key == InputKeyOk || key == InputKeyUp)
-            screen->scene = SpotifyPlayer;
-        else
-            handled = false;
-    } else if(screen->scene == SpotifyVolume) {
-        if(key == InputKeyOk) {
-            screen->scene = SpotifyPlayer;
-            lib->error = SpotifyOk;
-        } else if(vertical && !lib->error)
-            move_volume(model, key == InputKeyUp);
-        else
-            handled = false;
     } else if(screen->scene == SpotifyPlayer) {
         if(lib->request || (model->queued && model->queued != SpotifyNowPlaying)) {
             // A second tap must not duplicate a playback command.
         } else if(lib->error) {
             if(key == InputKeyOk) model->queued = lib->op;
-        } else if(screen->toolbar_focus) {
-            if(key == InputKeyUp)
-                screen->toolbar_focus = false;
-            else if(key == InputKeyLeft || key == InputKeyRight)
-                screen->volume_selected = !screen->volume_selected;
-            else if(key == InputKeyOk) {
-                if(screen->volume_selected) {
-                    screen->scene = SpotifyVolume;
-                    model->queued = SpotifyNowPlaying;
-                } else if(screen->now_playing[0])
-                    model->queued = SpotifyChooseCurrent;
-            }
         } else if(key == InputKeyOk)
             model->queued = SpotifyPlayerToggle;
         else if(key == InputKeyLeft)
             model->queued = SpotifyPlayerPrevious;
         else if(key == InputKeyRight)
             model->queued = SpotifyPlayerNext;
-        else if(key == InputKeyUp)
-            screen->scene = SpotifyLyricsHelp;
-        else if(key == InputKeyDown)
-            screen->toolbar_focus = true;
+        else if(key == InputKeyDown && screen->now_playing[0])
+            model->queued = SpotifyChooseCurrent;
         else
             handled = false;
     } else if(screen->scene == SpotifyPresets) {
@@ -560,10 +516,12 @@ static bool spotify_input(InputEvent* event, void* context) {
             handled = false;
     } else if(screen->scene == SpotifyPresetManage && !lib->request && !lib->accepted && !lib->error) {
         if(vertical)
-            screen->preset_option = !screen->preset_option;
+            screen->preset_option = (screen->preset_option + (key == InputKeyUp ? 2 : 1)) % 3;
         else if(key == InputKeyOk && !busy) {
-            if(screen->preset_option)
+            if(screen->preset_option == 2)
                 model->queued = SpotifyClearPreset + screen->preset_direction;
+            else if(screen->preset_option == 1)
+                model->queued = SpotifyAssignLiked + screen->preset_direction;
             else {
                 screen->scene = SpotifyPresetPick;
                 model->queued = SpotifyPlaylists;
@@ -574,7 +532,7 @@ static bool spotify_input(InputEvent* event, void* context) {
         !lib->error) {
         if(direction >= 0 && !busy) {
             screen->preset_direction = direction;
-            model->queued = SpotifyAssignPreset + direction * 4 + lib->selected;
+            model->queued = assign_preset(screen, direction);
         }
     } else if(lib->request || (model->queued && model->queued != SpotifyNowPlaying) || lib->accepted) {
         // Only a committed page can supply the row token for the next operation.
@@ -621,7 +579,9 @@ static bool spotify_input(InputEvent* event, void* context) {
         model->queued = screen->scene == SpotifyPresetPick ? SpotifyPlaylists : op;
     else
         handled = false;
+    bool dispatch = handled && model->queued;
     view_commit_model(app->view, handled);
+    if(dispatch) spotify_tick(app);
     return handled;
 }
 

@@ -13,8 +13,6 @@ typedef enum {
     SpotifyResults,
     SpotifyActions,
     SpotifyDestinations,
-    SpotifyLyricsHelp,
-    SpotifyVolume,
     SpotifyPresets,
     SpotifyPresetManage,
     SpotifyPresetDirection,
@@ -24,20 +22,16 @@ typedef enum {
 typedef struct {
     SpotifyLibrary library;
     const uint8_t* signin_qr;
+    const char* notice;
     uint32_t scroll;
     uint8_t category;
     SpotifyScene scene;
     char now_playing[SpotifyLabelBytes + 1];
     uint8_t play_state;
-    uint8_t volume;
-    bool volume_pending;
-    uint8_t volume_target;
     uint8_t preset_direction;
     uint8_t preset_option;
     char preset_labels[SpotifyRows][SpotifyLabelBytes + 1];
     bool presets_loaded;
-    bool toolbar_focus;
-    bool volume_selected;
     uint8_t title_bytes;
     uint32_t duration_s;
     uint32_t elapsed_s;
