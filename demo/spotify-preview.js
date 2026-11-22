@@ -12,6 +12,9 @@ const directions=['up','right','down','left'];
 const directionLabels={up:'↑ Up',right:'→ Right',down:'↓ Down',left:'← Left'};
 const presetStorage='eddy-spotify-demo-presets-v1';
 
+const likedSongs={id:'liked-songs',name:'Liked Songs',art:'heart',tracks:songs.map((_,i)=>i)};
+function presetOptions(s) { return [likedSongs,...s.playlists]; }
+
 function readPresets(playlists) {
   const presets={};
   try {
@@ -28,7 +31,7 @@ function setPreset(s,dir,playlist) {
   }
   notify(s,playlist?directionLabels[dir]+': '+playlist.name:'Preset cleared');
 }
-function presetPlaylist(s,dir) { return s.playlists.find(p=>p.id===s.presets[dir]); }
+function presetPlaylist(s,dir) { return presetOptions(s).find(p=>p.id===s.presets[dir]); }
 function presetLabel(s,dir) { return directionLabels[dir]+'   '+(presetPlaylist(s,dir)?.name ?? 'Unassigned'); }
 function playPreset(s,dir) {
   const playlist=presetPlaylist(s,dir);
@@ -48,7 +51,7 @@ export function openSpotifyDemo(session,{persistPresets=true}={}) {
   }
   const playlists=samplePlaylists();
   return {page:'spotify',row:0,views:[view('home','Spotify demo')],playlists,persistPresets,
-    presets:persistPresets?readPresets(playlists):{},
+    presets:persistPresets?readPresets([likedSongs,...playlists]):{},
     track:0,queue:[{id:1},{id:2}],previous:[],playing:true,started:now(),elapsed:21,notice:'',noticeUntil:0};
 }
 
@@ -77,7 +80,8 @@ function menu(s) {
   switch(v.kind) {
     case 'home': return [entry('playlists','Playlists','playlist'),entry('liked','Liked Songs','heart'),entry('queue','Queue','queue'),
       entry('albums','Albums','album'),entry('presets','Presets','playlist'),entry('setup','Eddy for iPhone','tracks')];
-    case 'playlists': case 'destinations': return s.playlists.map((p,i)=>entry(v.kind==='playlists'?'playlist':'save',p.name,p.art,i));
+    case 'playlists': case 'destinations': return s.playlists.map((p,i)=>entry(v.kind==='playlists'?'collection':'save',p.name,p.art,i));
+    case 'collection': return [entry('browseTracks','Browse tracks','playlist'),entry('playCollection','Play playlist','tracks')];
     case 'playlist': return s.playlists[v.value].tracks.map(songEntry);
     case 'queue': return s.queue.map(item=>entry('queued',songs[item.id].title,songs[item.id].art,item));
     case 'liked': return songs.map((song,i)=>songEntry(i));
@@ -85,8 +89,8 @@ function menu(s) {
     case 'artist': case 'album': return songs.flatMap((song,i)=>song[v.kind]===v.value?[songEntry(i)]:[]);
     case 'presets': return directions.map(dir=>entry('presetSlot',presetLabel(s,dir),'playlist',dir));
     case 'presetSlot': return [...(presetPlaylist(s,v.value)?[entry('playPreset','Play preset','tracks')]:[]),
-      entry('choosePreset','Choose playlist','playlist'),...(presetPlaylist(s,v.value)?[entry('clearPreset','Clear preset','playlist')]:[])];
-    case 'choosePreset': return s.playlists.map((p,i)=>entry('assignPlaylist',p.name,p.art,i));
+      entry('choosePreset','Choose playlist','playlist'),entry('assignLiked','Liked Songs','heart'),...(presetPlaylist(s,v.value)?[entry('clearPreset','Clear preset','playlist')]:[])];
+    case 'choosePreset': return s.playlists.map(p=>entry('assignPlaylist',p.name,p.art,p));
     case 'song': return [entry('play','Play now','tracks'),entry('enqueue','Add to queue','queue'),entry('destinations','Add to playlist','playlist'),entry('artist',songs[v.value].artist,'artist',songs[v.value].artist)];
     default: return [];
   }
@@ -116,21 +120,29 @@ function select(s,item) {
   const v=current(s);
   if(!item) return;
   switch(item.action) {
+    case 'browseTracks': open(s,'playlist',s.playlists[v.value].name,v.value); break;
+    case 'playCollection': {
+      const [first,...rest]=s.playlists[v.value].tracks;
+      if(first===undefined) break;
+      s.previous.push(s.track); s.queue=rest.map(id=>({id})); play(s,first);
+      openSpotifyPlayer(s); break;
+    }
+    case 'assignLiked': setPreset(s,v.value,likedSongs); s.views.pop(); break;
     case 'choosePreset': open(s,'choosePreset','Choose playlist',v.value); break;
-    case 'assignPlaylist': setPreset(s,v.value,s.playlists[item.value]); s.views.pop(); s.views.pop(); break;
+    case 'assignPlaylist': setPreset(s,v.value,item.value); s.views.pop(); s.views.pop(); break;
     case 'playPreset': playPreset(s,v.value); break;
     case 'clearPreset': setPreset(s,v.value,null); s.views.pop(); break;
     case 'play': {
       const list=s.views.at(-2);
-      if(list.kind==='playlist' || list.kind==='album') {
+      if(['playlist','album','liked'].includes(list.kind)) {
         const tracks=list.kind==='playlist'?s.playlists[list.value].tracks:
-          songs.flatMap((song,id)=>song.album===list.value?[id]:[]);
+          list.kind==='liked'?likedSongs.tracks:songs.flatMap((song,id)=>song.album===list.value?[id]:[]);
         s.queue=tracks.slice(list.row+1).map(id=>({id}));
       }
       s.previous.push(s.track); play(s,v.value);
       s.views.pop(); openSpotifyPlayer(s); break;
     }
-    case 'enqueue': s.queue.push({id:v.value}); notify(s,'Added to queue'); break;
+    case 'enqueue': s.queue.push({id:v.value}); s.views.pop(); notify(s,'Added to queue'); break;
     case 'queued': open(s,'queuedSong',songs[item.value.id].title,item.value); break;
     case 'destinations': open(s,item.action,item.label,v.value); break;
     case 'save': {
@@ -160,18 +172,26 @@ function activate(s) {
   } else select(s,menu(s)[v.row]);
 }
 
+function highlightedCollection(s) {
+  const v=current(s);
+  if(v.kind==='liked' || (v.kind==='home' && menu(s)[v.row]?.action==='liked')) return likedSongs;
+  if(v.kind==='playlist' || v.kind==='collection') return s.playlists[v.value];
+  if(v.kind==='playlists') return s.playlists[v.row];
+}
+
 export function spotifyKey(s,key) {
   const v=current(s);
   s.notice='';
-  if(key==='holdOk' && (v.kind==='playlists' || v.kind==='playlist')) {
-    open(s,'assign','Press a direction',v.kind==='playlist'?v.value:v.row);
+  const collection=highlightedCollection(s);
+  if(key==='holdOk' && collection) {
+    open(s,'assign','Press a direction',collection);
     return true;
   }
   if(key.startsWith('hold')) {
     const dir=key.slice(4).toLowerCase();
     if(!directions.includes(dir)) return true;
-    if(v.kind==='assign') { setPreset(s,dir,s.playlists[v.value]); s.views.pop(); }
-    else if(v.kind==='playlists' && !s.presets[dir]) setPreset(s,dir,s.playlists[v.row]);
+    if(v.kind==='assign') { setPreset(s,dir,v.value); s.views.pop(); }
+    else if(collection && !s.presets[dir]) setPreset(s,dir,collection);
     else if(!['setup','presetSlot','choosePreset','presets'].includes(v.kind)) playPreset(s,dir);
     return true;
   }
@@ -181,7 +201,7 @@ export function spotifyKey(s,key) {
   }
   if(v.kind==='setup') return true;
   if(v.kind==='assign') {
-    if(directions.includes(key)) {setPreset(s,key,s.playlists[v.value]); s.views.pop();}
+    if(directions.includes(key)) {setPreset(s,key,v.value); s.views.pop();}
     return true;
   }
   if(v.kind==='player') {
@@ -243,10 +263,10 @@ export function spotifyStatus(s) {
     const line=active.cues[lyricLine(active,at)][1];
     return 'Sample lyrics for '+active.title+'. '+line+'. Left restarts or goes back. Right skips. Down or Back returns to Now Playing. '+playing+'.';
   }
-  if(v.kind==='assign') return 'Assign '+s.playlists[v.value].name+'. Press a direction. '+directions.map(dir=>presetLabel(s,dir)).join('. ');
+  if(v.kind==='assign') return 'Assign '+v.value.name+'. Press a direction. '+directions.map(dir=>presetLabel(s,dir)).join('. ');
   const rows=visibleRows(s);
   return [v.title,now()<s.noticeUntil?s.notice:'',rows[v.row]?.label ?? 'Empty',playing,
-    'Up or Down selects. OK opens. Right opens Now playing.',v.kind==='playlists'?'Hold an unused arrow to save this playlist. Hold OK to replace a preset.':''].filter(Boolean).join('. ');
+    'Up or Down selects. OK opens. Right opens Now playing.',highlightedCollection(s)?'Hold an unused arrow to save this playlist. Hold OK to replace a preset.':''].filter(Boolean).join('. ');
 }
 
 function cropped(ctx,text,x,y,width) {
@@ -297,7 +317,10 @@ export function drawSpotify(ctx,s) {
     ctx.restore(); return false;
   }
   const title=v.kind==='lyrics'?songs[s.track].title:v.title;
-  cropped(ctx,v.kind==='playlists'?'Playlists · Hold arrow':title,2,9,89);
+  cropped(ctx,title,2,9,89);
+  if(highlightedCollection(s)) {
+    ctx.font='7px sans-serif'; ctx.fillText('Hold arrow',60,9);
+  }
   ctx.fillRect(2,11,124,1);
   if(v.kind==='assign') {
     ctx.font='bold 8px sans-serif';

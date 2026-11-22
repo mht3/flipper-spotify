@@ -10,7 +10,7 @@ function snapshot(s) {
     song:v.kind==='playlist'?s.playlists[v.value].tracks[v.row]:v.kind==='song'?v.value:null,
     queue:s.queue.map(item=>item.id), playing:s.playing, left:s.presets.left,
     leftTracks:s.playlists.find(p=>p.id===s.presets.left)?.tracks.slice() ?? [],
-    playlist:v.kind==='playlists'?s.playlists[v.row]?.id:v.kind==='playlist'?s.playlists[v.value]?.id:null,
+    playlist:v.kind==='playlists'?s.playlists[v.row]?.id:['playlist','collection'].includes(v.kind)?s.playlists[v.value]?.id:null,
   };
 }
 
@@ -24,8 +24,10 @@ export const spotifyTourSteps=[
     (a,b)=>a.kind==='home' && a.row===0 && b.kind==='playlists'),
   lesson('choose','Find On the Coast','Press Down once to highlight On the Coast.','down',
     (a,b)=>a.kind==='playlists' && a.row===0 && b.kind==='playlists' && b.playlist===coast),
-  lesson('open','Look inside the playlist','Press OK to see its tracks.','ok',
-    (a,b)=>a.kind==='playlists' && a.playlist===coast && b.kind==='playlist' && b.playlist===coast),
+  lesson('open','Open On the Coast','Press OK on the highlighted playlist.','ok',
+    (a,b)=>a.kind==='playlists' && a.playlist===coast && b.kind==='collection' && b.playlist===coast),
+  lesson('browse','Browse the tracks','Press OK on Browse tracks.','ok',
+    (a,b)=>a.kind==='collection' && b.kind==='playlist' && b.playlist===coast),
   lesson('choose-song','Find Sea Glass','Press Down to highlight Sea Glass. Dolphin Days is still playing.','down',
     (a,b)=>a.kind==='playlist' && a.playlist===coast && a.song!==seaGlass && b.song===seaGlass),
   lesson('song','Open the song actions','Press OK on Sea Glass.','ok',
@@ -37,7 +39,7 @@ export const spotifyTourSteps=[
       b.queue.length===1 && b.queue[0]===seaGlass && a.track===b.track && a.playing && b.playing &&
       a.started===b.started && a.elapsed===b.elapsed),
   lesson('player','Open Now playing','Press Right to see the current track, Dolphin Days.','right',
-    (a,b)=>a.kind==='song' && b.kind==='player' && a.track===b.track && a.queue[0]===seaGlass),
+    (a,b)=>a.kind==='playlist' && b.kind==='player' && a.track===b.track && a.queue[0]===seaGlass),
   lesson('lyrics','Follow the words','Press Up. The highlighted line follows Dolphin Days automatically.','up',
     (a,b)=>a.kind==='player' && b.kind==='lyrics' && a.track===b.track),
   lesson('skip','Skip from Lyrics','Tap Right here in Lyrics. Sea Glass starts, and its words appear.','right',
