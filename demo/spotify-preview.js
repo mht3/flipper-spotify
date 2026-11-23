@@ -316,7 +316,7 @@ function drawFooter(ctx,s,tick) {
   ctx.fillRect(0,51,128,13);
   ctx.save();
   ctx.globalCompositeOperation='destination-out';
-  if(s.notice && now()<s.noticeUntil) {
+  if(!s.missingPreset && s.notice && now()<s.noticeUntil) {
     line(ctx,4,57,6,59); line(ctx,6,59,10,55); text(ctx,s.notice,15,61);
   } else {
     ctx.save(); ctx.beginPath(); ctx.rect(13,51,101,13); ctx.clip();
@@ -383,7 +383,7 @@ export function drawSpotify(ctx,s) {
   if(v.kind==='presets') text(ctx,'Hold to play',39,8);
   if(s.missingPreset) {
     text(ctx,'No playlist on this button.',2,24); text(ctx,'Assign one in Presets.',2,36);
-    text(ctx,'OK: Return',2,47); return false;
+    text(ctx,'OK: Return',2,47); drawFooter(ctx,s,tick); return true;
   }
   const notice=s.notice && now()<s.noticeUntil;
   if(v.kind==='player') {
@@ -404,7 +404,7 @@ export function drawSpotify(ctx,s) {
       }
       text(ctx,dirName(dir),3,y+8); ctx.restore();
     });
-    if(v.kind==='assign') {text(ctx,'Press direction to assign',2,62); return true;}
+    if(v.kind==='assign') {text(ctx,'Press direction to assign',2,62); if(notice) drawFooter(ctx,s,tick); return true;}
   } else {
     const covers=['playlists','choosePreset','destinations'].includes(v.kind);
     rows.slice(first,first+limit).forEach((item,i)=>{
