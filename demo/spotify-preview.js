@@ -1,6 +1,7 @@
-import {songs, samplePlaylists, drawIcon} from './spotify-demo-library.js';
+import {songs, samplePlaylists, setupQr} from './spotify-demo-library.js';
+import {text, textWidth} from './lcd.js';
 
-const pageSize=3;
+const pageSize=4;
 const now=()=>performance.now();
 const clock=seconds=>Math.floor(seconds/60)+':'+String(Math.floor(seconds%60)).padStart(2,'0');
 const entry=(action,label,icon,value)=>({action,label,icon,value});
@@ -29,30 +30,30 @@ function setPreset(s,dir,playlist) {
   if(s.persistPresets) {
     try { localStorage.setItem(presetStorage,JSON.stringify(s.presets)); } catch {}
   }
-  notify(s,playlist?directionLabels[dir]+': '+playlist.name:'Preset cleared');
+  notify(s,playlist?'Preset saved':'Preset cleared');
 }
 function presetPlaylist(s,dir) { return presetOptions(s).find(p=>p.id===s.presets[dir]); }
 function presetLabel(s,dir) { return directionLabels[dir]+'   '+(presetPlaylist(s,dir)?.name ?? 'Unassigned'); }
 function playPreset(s,dir) {
   const playlist=presetPlaylist(s,dir);
-  if(!playlist?.tracks.length) {notify(s,'Set a preset in Playlists'); return;}
+  if(!playlist?.tracks.length) {s.missingPreset=true; return;}
   const [first,...rest]=playlist.tracks;
   s.previous.push(s.track); s.queue=rest.map(id=>({id})); play(s,first);
   openSpotifyPlayer(s);
-  notify(s,playlist.name);
+
 }
 
 export function openSpotifyDemo(session,{persistPresets=true}={}) {
   if(session) {
-    session.views=[view('home','Spotify demo')];
-    session.notice='';
+    session.views=[view('home','Spotify')];
+    session.notice=''; session.missingPreset=false; session.scrollStarted=now();
     position(session);
     return session;
   }
   const playlists=samplePlaylists();
-  return {page:'spotify',row:0,views:[view('home','Spotify demo')],playlists,persistPresets,
+  return {page:'spotify',row:0,views:[view('home','Spotify')],playlists,persistPresets,
     presets:persistPresets?readPresets([likedSongs,...playlists]):{},
-    track:0,queue:[{id:1},{id:2}],previous:[],playing:true,started:now(),elapsed:21,notice:'',noticeUntil:0};
+    scrollStarted:now(),missingPreset:false,track:0,queue:[{id:1},{id:2}],previous:[],playing:true,started:now(),elapsed:21,notice:'',noticeUntil:0};
 }
 
 export function openSpotifyPlayer(s) {
@@ -116,17 +117,17 @@ function select(s,item) {
   const v=current(s);
   if(!item) return;
   switch(item.action) {
-    case 'browseTracks': open(s,'playlist',s.playlists[v.value].name,v.value); break;
-    case 'album': open(s,'album',item.value,item.value); break;
+    case 'browseTracks': s.views.pop(); open(s,'playlist',s.playlists[v.value].name,v.value); break;
+    case 'album': s.views.pop(); open(s,'album',item.value,item.value); break;
     case 'playAlbum': case 'playCollection': {
       const [first,...rest]=item.action==='playAlbum'?albumTracks(v.value):s.playlists[v.value].tracks;
       if(first===undefined) break;
       s.previous.push(s.track); s.queue=rest.map(id=>({id})); play(s,first);
-      openSpotifyPlayer(s); break;
+      s.views.pop(); openSpotifyPlayer(s); break;
     }
     case 'assignLiked': setPreset(s,v.value,likedSongs); s.views.pop(); break;
-    case 'choosePreset': open(s,'choosePreset','Choose playlist',v.value); break;
-    case 'assignPlaylist': setPreset(s,v.value,item.value); s.views.pop(); s.views.pop(); break;
+    case 'choosePreset': s.views.pop(); open(s,'choosePreset','Choose playlist',v.value); break;
+    case 'assignPlaylist': setPreset(s,v.value,item.value); s.views.pop(); break;
     case 'clearPreset': setPreset(s,v.value,null); s.views.pop(); break;
     case 'play': {
       const list=s.views.at(-2);
@@ -139,12 +140,12 @@ function select(s,item) {
       s.views.pop(); openSpotifyPlayer(s); break;
     }
     case 'enqueue': s.queue.push({id:v.value}); s.views.pop(); notify(s,'Added to queue'); break;
-    case 'destinations': open(s,item.action,item.label,v.value); break;
+    case 'destinations': s.views.pop(); open(s,item.action,item.label,v.value); break;
     case 'save': {
       const target=s.playlists[item.value];
       const duplicate=target.tracks.includes(v.value);
       if(!duplicate) target.tracks.push(v.value);
-      s.views.pop(); notify(s,duplicate?'Already in playlist':'Added to '+target.name); break;
+      s.views.pop(); notify(s,'Added to playlist'); break;
     }
     default: open(s,item.action,item.label,item.value);
   }
@@ -157,13 +158,17 @@ function activate(s) {
 function highlightedCollection(s) {
   const v=current(s);
   if(v.kind==='liked' || (v.kind==='home' && menu(s)[v.row]?.action==='liked')) return likedSongs;
-  if(v.kind==='playlist' || v.kind==='collection') return s.playlists[v.value];
   if(v.kind==='playlists') return s.playlists[v.row];
 }
 
 export function spotifyKey(s,key) {
   const v=current(s);
   s.notice='';
+  s.scrollStarted=now();
+  if(s.missingPreset) {
+    if(key==='ok' || key==='back') s.missingPreset=false;
+    return true;
+  }
   const collection=highlightedCollection(s);
   if(key==='holdOk' && collection) {
     open(s,'assign','Press a direction',collection);
@@ -174,7 +179,7 @@ export function spotifyKey(s,key) {
     if(!directions.includes(dir)) return true;
     if(v.kind==='assign') { setPreset(s,dir,v.value); s.views.pop(); }
     else if(collection && !s.presets[dir]) setPreset(s,dir,collection);
-    else if(!['setup','presetSlot','choosePreset','presets'].includes(v.kind)) playPreset(s,dir);
+    else if(!['setup','presetSlot','choosePreset','destinations'].includes(v.kind)) playPreset(s,dir);
     return true;
   }
   if(key==='back' || (v.kind==='setup' && key==='ok')) {
@@ -193,10 +198,19 @@ export function spotifyKey(s,key) {
     else if(key==='down') open(s,'destinations','Add to playlist',s.track);
     return true;
   }
-  if(key==='right') {openSpotifyPlayer(s); return true;}
+  if(key==='right') {
+    if(v.kind==='destinations' && s.views.at(-2)?.kind==='player') s.views.pop();
+    else if(!['choosePreset','presetSlot'].includes(v.kind)) openSpotifyPlayer(s);
+    return true;
+  }
   const count=menu(s).length;
-  if(count && (key==='down' || key==='up')) v.row=(v.row+(key==='down'?1:count-1))%count;
-  else if(count && key==='left') v.row=Math.max(0,(Math.floor(v.row/pageSize)-1)*pageSize);
+  const {first,step}=rowLayout(v);
+  if(count && (key==='down' || key==='up')) {
+    const next=v.row+(key==='down'?1:-1);
+    if(step===10 && (next<0 || next>=count)) {
+      v.row=next<0?Math.min(pageSize,count)-1:first;
+    } else v.row=(next+count)%count;
+  } else if(key==='left' && step===10 && first>0) v.row=first-1;
   else if(count && key==='ok') activate(s);
   return true;
 }
@@ -204,9 +218,10 @@ export function spotifyKey(s,key) {
 export function spotifyHit(s,x,y) {
   const v=current(s);
   if(v.kind==='setup') return spotifyKey(s,'ok');
+  if(s.missingPreset) return spotifyKey(s,'ok');
   if(v.kind==='assign') {
-    if(y>=13 && y<61) return spotifyKey(s,directions[Math.floor((y-13)/12)]);
-    return true;
+    if(y>=10 && y<50) return spotifyKey(s,directions[Math.floor((y-10)/10)]);
+    return false;
   }
   if(v.kind==='player') {
     if(y<50 || y>63) return false;
@@ -216,17 +231,18 @@ export function spotifyHit(s,x,y) {
     if(x>=21 && x<=47) return spotifyKey(s,'left');
     return false;
   }
-  if(y>=50) { openSpotifyPlayer(s); return true; }
-  if(y<12 || y>=48) return false;
-  const row=Math.floor(v.row/pageSize)*pageSize+Math.floor((y-12)/12);
-  if(row>=menu(s).length) return false;
-  v.row=row; activate(s); return true;
+  if(y>=51) return v.kind==='presetSlot'?spotifyKey(s,'ok'):spotifyKey(s,'right');
+  const {first,top,step,limit}=rowLayout(v);
+  const index=Math.floor((y-top)/step);
+  if(index<0 || index>=limit || first+index>=menu(s).length) return false;
+  s.scrollStarted=now(); v.row=first+index; activate(s); return true;
 }
 
 export function spotifyStatus(s) {
   position(s);
   const v=current(s), active=songs[s.track];
   if(v.kind==='setup') return 'On your Flipper, scan the QR code to open Eddy on your iPhone. This demo uses a sample library. Press OK to return.';
+  if(s.missingPreset) return 'No playlist on this button. Assign one in Presets. OK: Return';
   const playing=(s.playing?'Playing ':'Paused on ')+active.title+' by '+active.artist;
   if(v.kind==='player') return [now()<s.noticeUntil?s.notice:'',playing,
     'OK pauses or plays. Left restarts or goes back. Right skips. Down opens Add to playlist.'].filter(Boolean).join('. ');
@@ -236,92 +252,188 @@ export function spotifyStatus(s) {
     'Up or Down selects. OK opens. Right opens Now playing.',highlightedCollection(s)?'Hold an unused arrow to save this playlist. Hold OK to replace a preset.':''].filter(Boolean).join('. ');
 }
 
-function cropped(ctx,text,x,y,width) {
-  if(ctx.measureText(text).width>width) {
-    while(text.length && ctx.measureText(text+'…').width>width) text=text.slice(0,-1);
-    text+='…';
+function rowLayout(v) {
+  if(['home','song','collection','albumMenu','presetSlot'].includes(v.kind)) {
+    return {first:v.kind==='home'?Math.max(0,v.row-2):0,top:11,step:13,limit:3};
   }
-  ctx.fillText(text,x,y);
+  return {first:Math.floor(v.row/pageSize)*pageSize,top:10,step:10,limit:pageSize};
 }
 
-function footer(ctx,s,at) {
-  const song=songs[s.track];
-  ctx.save();
-  ctx.fillRect(1,50,126,1);
-  drawIcon(ctx,song.art,3,54);
-  ctx.font='bold 8px sans-serif'; cropped(ctx,song.title,15,60,78);
-  ctx.font='7px monospace'; ctx.fillText(clock(at),98,60);
-  if(s.playing) { ctx.fillRect(121,54,2,6); ctx.fillRect(125,54,2,6); }
-  else {ctx.beginPath();ctx.moveTo(120,53);ctx.lineTo(126,57);ctx.lineTo(120,61);ctx.fill();}
-  ctx.fillRect(1,63,Math.round(126*at/song.seconds),1);
-  ctx.restore();
-}
-
-function drawPlayer(ctx,s,at) {
-  const track=songs[s.track];
-  drawIcon(ctx,track.art,3,13,2);
-  ctx.font='bold 10px sans-serif'; cropped(ctx,track.title,24,21,101);
-  ctx.font='8px sans-serif'; cropped(ctx,track.artist,24,30,66);
-  ctx.font='7px monospace'; ctx.fillText(clock(at),104,30);
-  ctx.fillRect(2,34,124,1);
-  ctx.fillRect(2,33,Math.max(2,Math.round(124*at/track.seconds)),3);
-  ctx.save();
-  ctx.textAlign='center'; ctx.font='bold 9px sans-serif';
-  ctx.fillRect(32,54,1,7); ctx.fillRect(95,54,1,7);
-  for(let i=0;i<4;i++) {
-    ctx.fillRect(37-i,54+i,1,7-2*i);
-    ctx.fillRect(90+i,54+i,1,7-2*i);
+// Every coordinate here is one LCD pixel. These screens mirror spotify_screen.c.
+function line(ctx,x,y,x2,y2) {
+  const dx=Math.abs(x2-x), dy=Math.abs(y2-y);
+  const sx=x<x2?1:-1, sy=y<y2?1:-1;
+  let error=dx-dy;
+  for(;;) {
+    ctx.fillRect(x,y,1,1);
+    if(x===x2 && y===y2) break;
+    const twice=error*2;
+    if(twice>-dy) {error-=dy;x+=sx;}
+    if(twice<dx) {error+=dx;y+=sy;}
   }
-  if(s.playing) {
-    ctx.fillRect(60,53,3,9); ctx.fillRect(65,53,3,9);
+}
+function frame(ctx,x,y,w,h) {
+  ctx.fillRect(x,y,w,1); ctx.fillRect(x,y+h-1,w,1);
+  ctx.fillRect(x,y,1,h); ctx.fillRect(x+w-1,y,1,h);
+}
+function triangle(ctx,x,y,h,direction=1) {
+  for(let i=0;i<Math.ceil(h/2);i++) ctx.fillRect(x+i*direction,y+i,1,h-2*i);
+}
+function rowIcon(ctx,action,y) {
+  switch(action) {
+    case 'playlists':
+      for(let i=0;i<3;i++) line(ctx,3,y+2*i,10-i,y+2*i);
+      ctx.fillRect(10,y+4,2,2); break;
+    case 'albums': frame(ctx,3,y-1,8,8); frame(ctx,5,y+1,4,4); break;
+    case 'presets': line(ctx,3,y+3,11,y+3); line(ctx,7,y-1,7,y+7); frame(ctx,5,y+1,5,5); break;
+    case 'setup': text(ctx,'?',5,y+7); break;
+    case 'queue':
+      for(let i=0;i<3;i++) {ctx.fillRect(3,y+2*i,1,1); line(ctx,5,y+2*i,11,y+2*i);}
+      break;
+    case 'player': triangle(ctx,4,y,7); break;
+    default: line(ctx,4,y,7,y+3); line(ctx,7,y+3,10,y); line(ctx,3,y+2,7,y+6); line(ctx,7,y+6,11,y+2);
+  }
+}
+const tiles=[[4,14,31,14,4],[17,10,4,10,17],[0,27,31,14,4],[4,12,31,12,4],
+  [4,10,17,31,0],[8,15,9,27,18],[1,3,7,15,31],[0,21,10,21,0]];
+function cover(ctx,name,y) {
+  let hash=5381;
+  for(const char of name) hash=(hash*33+char.charCodeAt(0))&0xffff;
+  frame(ctx,3,y,9,9);
+  tiles[hash%8].forEach((bits,row)=>{
+    for(let col=0;col<5;col++) if(bits&(1<<col)) ctx.fillRect(5+col,y+2+row,1,1);
+  });
+}
+function scrolledText(ctx,value,x,y,width,tick,font='secondary') {
+  const extra=Math.max(0,textWidth(value,font)-width);
+  const offset=Math.min(extra,Math.max(0,tick%(extra+34)-16));
+  text(ctx,value,x-offset,y,font);
+}
+function selectedRow(ctx,y,height,selected) {
+  if(!selected) return;
+  ctx.fillRect(1,y,126,height); ctx.fillRect(0,y+1,128,height-2);
+  ctx.globalCompositeOperation='destination-out';
+}
+function drawFooter(ctx,s,tick) {
+  ctx.fillRect(0,51,128,13);
+  ctx.save();
+  ctx.globalCompositeOperation='destination-out';
+  if(s.notice && now()<s.noticeUntil) {
+    line(ctx,4,57,6,59); line(ctx,6,59,10,55); text(ctx,s.notice,15,61);
   } else {
-    for(let i=0;i<5;i++) ctx.fillRect(62+i,53+i,1,9-2*i);
+    ctx.save(); ctx.beginPath(); ctx.rect(13,51,101,13); ctx.clip();
+    scrolledText(ctx,trackLabel(s.track),15,61,97,tick); ctx.restore();
+    if(s.playing) triangle(ctx,4,54,8);
+    else {ctx.fillRect(4,55,2,6); ctx.fillRect(8,55,2,6);}
+    line(ctx,118,57,123,57); line(ctx,121,54,124,57); line(ctx,121,60,124,57);
   }
-  ctx.font='8px sans-serif'; ctx.fillText('↓',109,60);
-  ctx.beginPath(); ctx.arc(120,57,5,0,2*Math.PI); ctx.strokeStyle=ctx.fillStyle; ctx.lineWidth=1; ctx.stroke();
-  ctx.fillRect(118,57,5,1); ctx.fillRect(120,55,1,5);
   ctx.restore();
+}
+function drawPlayer(ctx,s,at,tick) {
+  const song=songs[s.track];
+  scrolledText(ctx,song.title,4,23,122,tick,'primary'); scrolledText(ctx,song.artist,4,33,122,tick);
+  ctx.fillRect(4,39,120,1); ctx.fillRect(4,38,Math.floor(Math.floor(at)*120/song.seconds),3);
+  text(ctx,clock(at),4,49); text(ctx,clock(song.seconds),124,49,'secondary','right');
+  line(ctx,32,54,32,60); triangle(ctx,37,54,7,-1);
+  if(s.playing) {ctx.fillRect(60,53,3,9); ctx.fillRect(65,53,3,9);}
+  else triangle(ctx,62,53,9);
+  triangle(ctx,90,54,7); line(ctx,95,54,95,60);
+  line(ctx,109,54,109,60); line(ctx,106,57,109,60); line(ctx,109,60,112,57);
+  for(const [x,y] of [[0,5],[1,5],[2,5],[3,4]]) {
+    for(const sign of [-1,1]) for(const side of [-1,1]) {
+      ctx.fillRect(120+sign*x,57+side*y,1,1); ctx.fillRect(120+sign*y,57+side*x,1,1);
+    }
+  }
+  line(ctx,118,57,122,57); line(ctx,120,55,120,59);
+}
+const trackLabel=id=>songs[id].title+' - '+songs[id].artist;
+const albumLabel=name=>name+' - '+songs.find(song=>song.album===name).artist;
+const playlistLabel=name=>name+' - Eddy';
+const dirName=dir=>dir[0].toUpperCase()+dir.slice(1);
+function resultLabel(item) {
+  if(item.action==='song') return trackLabel(item.value);
+  if(item.action==='albumMenu') return albumLabel(item.label);
+  return playlistLabel(item.label);
+}
+function titleFor(s,v) {
+  switch(v.kind) {
+    case 'playlist': return 'Playlist tracks';
+    case 'album': return 'Album tracks';
+    case 'song': return trackLabel(v.value);
+    case 'collection': return playlistLabel(v.title);
+    case 'albumMenu': return albumLabel(v.title);
+    case 'presetSlot': return dirName(v.value);
+    case 'assign': return 'Assign preset';
+    default: return v.title;
+  }
 }
 
 export function drawSpotify(ctx,s) {
-  const v=current(s), at=position(s);
-  ctx.save(); ctx.textBaseline='alphabetic'; ctx.font='bold 9px sans-serif';
+  const at=position(s), v=current(s), tick=Math.floor((now()-s.scrollStarted)/70);
   if(v.kind==='setup') {
-    ctx.fillText('Eddy for iPhone',2,9); ctx.fillRect(2,11,124,1);
-    ctx.font='8px sans-serif';
-    ctx.fillText('Scan the QR on your Flipper',2,28); ctx.fillText('to open Eddy on your iPhone.',2,39);
-    ctx.fillText('OK  Back to demo',2,59);
-    ctx.restore(); return false;
+    for(let y=0;y<64;y++) for(let x=0;x<64;x++) {
+      if(setupQr[y*8+(x>>3)] & (1<<(x%8))) ctx.fillRect(x,y,1,1);
+    }
+    text(ctx,'Eddy',66,20,'primary'); text(ctx,'Scan for the',66,33);
+    text(ctx,'iPhone app',66,44); text(ctx,'OK: Close',66,60); return false;
   }
-  cropped(ctx,v.title,2,9,89);
-  if(highlightedCollection(s)) {
-    ctx.font='7px sans-serif'; ctx.fillText('Hold arrow',60,9);
+  const actions=['song','collection','albumMenu'].includes(v.kind);
+  if(actions) {
+    ctx.save(); ctx.beginPath(); ctx.rect(0,0,92,10); ctx.clip();
+    scrolledText(ctx,titleFor(s,v),2,8,89,tick); ctx.restore();
+  } else text(ctx,titleFor(s,v),2,8);
+  if(v.kind==='presets') text(ctx,'Hold to play',39,8);
+  if(s.missingPreset) {
+    text(ctx,'No playlist on this button.',2,24); text(ctx,'Assign one in Presets.',2,36);
+    text(ctx,'OK: Return',2,47); return false;
   }
-  ctx.fillRect(2,11,124,1);
-  if(v.kind==='assign') {
-    ctx.font='bold 8px sans-serif';
-    directions.forEach((dir,i)=>cropped(ctx,presetLabel(s,dir),4,22+i*12,120));
-  } else if(v.kind==='player') {
-    drawPlayer(ctx,s,at);
+  const notice=s.notice && now()<s.noticeUntil;
+  if(v.kind==='player') {
+    drawPlayer(ctx,s,at,tick);
+    if(notice) drawFooter(ctx,s,tick);
+    return true;
+  }
+  const {first,top,step,limit}=rowLayout(v), rows=menu(s);
+  if(v.kind==='assign' || v.kind==='presets') {
+    directions.forEach((dir,i)=>{
+      const y=10+i*10, selected=v.kind==='presets' && i===v.row;
+      ctx.save(); selectedRow(ctx,y,10,selected);
+      ctx.save(); ctx.beginPath(); ctx.rect(30,y,98,10); ctx.clip();
+      scrolledText(ctx,presetPlaylist(s,dir)?.name??'Unassigned',31,y+8,95,selected?tick:0); ctx.restore();
+      if(selected) {
+        ctx.globalCompositeOperation='source-over'; ctx.fillRect(0,y,30,10);
+        ctx.globalCompositeOperation='destination-out';
+      }
+      text(ctx,dirName(dir),3,y+8); ctx.restore();
+    });
+    if(v.kind==='assign') {text(ctx,'Press direction to assign',2,62); return true;}
   } else {
-    const rows=menu(s); v.row=Math.min(v.row,Math.max(0,rows.length-1));
-    const start=Math.floor(v.row/pageSize)*pageSize;
-    rows.slice(start,start+pageSize).forEach((item,i)=>{
-      const y=12+i*12;
-      ctx.save();
-      if(start+i===v.row) {ctx.beginPath();ctx.roundRect(1,y,123,12,3);ctx.fill();ctx.globalCompositeOperation='destination-out';}
-      drawIcon(ctx,item.icon,5,y+2);
-      ctx.font='bold 8px sans-serif'; cropped(ctx,item.label,17,y+9,101);
+    const covers=['playlists','choosePreset','destinations'].includes(v.kind);
+    rows.slice(first,first+limit).forEach((item,i)=>{
+      const y=top+i*step, selected=first+i===v.row;
+      ctx.save(); selectedRow(ctx,y,step===10?10:12,selected);
+      if(v.kind==='home') {rowIcon(ctx,item.action,y+3); text(ctx,item.label,16,y+9);}
+      else if(actions || v.kind==='presetSlot') text(ctx,item.label,v.kind==='presetSlot'?5:6,y+9);
+      else if(covers) {
+        const label=resultLabel(item);
+        ctx.save(); ctx.beginPath(); ctx.rect(15,y,113,10); ctx.clip();
+        scrolledText(ctx,label,16,y+8,110,selected?tick:0); ctx.restore();
+        if(selected) {
+          ctx.globalCompositeOperation='source-over'; ctx.fillRect(0,y,15,10);
+          ctx.globalCompositeOperation='destination-out';
+        }
+        cover(ctx,label,y);
+      } else scrolledText(ctx,resultLabel(item),4,y+8,122,selected?tick:0);
       ctx.restore();
     });
-    if(rows.length>pageSize) ctx.fillRect(126,13+Math.floor(v.row/pageSize)*34/Math.ceil(rows.length/pageSize),1,Math.ceil(33/Math.ceil(rows.length/pageSize)));
-    if(!rows.length) {
-      ctx.font='8px sans-serif'; ctx.fillText('Your queue is empty',4,37);
+    if(v.kind==='presetSlot') {text(ctx,'OK: Select',2,62); if(notice) drawFooter(ctx,s,tick); return true;}
+    if(!rows.length) text(ctx,v.kind==='destinations'?'No owned playlists found.':'No results here.',2,30);
+    if(v.kind==='home' && rows[v.row]?.action==='liked') text(ctx,'Hold arrow',46,8);
+    else if(v.kind==='liked' || v.kind==='playlists') text(ctx,'Hold arrow',v.kind==='liked'?49:39,8);
+    else if(step===10 && (first>0 || rows.length>first+pageSize)) {
+      text(ctx,first>0?(rows.length>first+pageSize?'^ v':'^'):'v',78,8);
     }
   }
-  if(!['player','assign'].includes(v.kind)) footer(ctx,s,at);
-  if(s.notice && now()<s.noticeUntil) {
-    ctx.save();ctx.fillRect(1,35,125,14);ctx.globalCompositeOperation='destination-out';ctx.font='bold 8px sans-serif';cropped(ctx,s.notice,5,45,117);ctx.restore();
-  }
-  ctx.restore(); return s.playing || now()<s.noticeUntil;
+  drawFooter(ctx,s,tick);
+  return true;
 }

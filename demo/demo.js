@@ -23,19 +23,10 @@ function session() {
 function draw() {
   clearTimeout(redrawTimer);
   if (document.hidden) return;
-  const box = lcd.getBoundingClientRect();
-  if (!box.width || !box.height) return;
-  const scale = window.devicePixelRatio || 1;
-  const width = Math.round(box.width * scale), height = Math.round(box.height * scale);
-  if (lcd.width !== width || lcd.height !== height) {
-    lcd.width = width;
-    lcd.height = height;
-  }
-  context.setTransform(width / 128, 0, 0, height / 64, 0, 0);
   context.clearRect(0, 0, 128, 64);
   context.fillStyle = context.strokeStyle = '#32291e';
   context.imageSmoothingEnabled = false;
-  if (drawSpotify(context, session())) redrawTimer = setTimeout(draw, 500);
+  if (drawSpotify(context, session())) redrawTimer = setTimeout(draw, 70);
 }
 
 function update() {
