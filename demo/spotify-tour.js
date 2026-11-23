@@ -6,6 +6,7 @@ const seaGlass=songs.findIndex(song=>song.title==='Sea Glass');
 function snapshot(s) {
   const v=s.views.at(-1);
   return {
+    inMorningSwim:s.playlists[0].tracks.includes(seaGlass),
     kind:v.kind, row:v.row, track:s.track, elapsed:s.elapsed, started:s.started,
     song:v.kind==='playlist'?s.playlists[v.value].tracks[v.row]:v.kind==='song'?v.value:null,
     queue:s.queue.map(item=>item.id), playing:s.playing, left:s.presets.left,
@@ -40,13 +41,14 @@ export const spotifyTourSteps=[
       a.started===b.started && a.elapsed===b.elapsed),
   lesson('player','Open Now playing','Press Right to see the current track, Dolphin Days.','right',
     (a,b)=>a.kind==='playlist' && b.kind==='player' && a.track===b.track && a.queue[0]===seaGlass),
-  lesson('lyrics','Follow the words','Press Up. The highlighted line follows Dolphin Days automatically.','up',
-    (a,b)=>a.kind==='player' && b.kind==='lyrics' && a.track===b.track),
-  lesson('skip','Skip from Lyrics','Tap Right here in Lyrics. Sea Glass starts, and its words appear.','right',
-    (a,b)=>a.kind==='lyrics' && b.kind==='lyrics' && a.track!==seaGlass && a.queue[0]===seaGlass &&
+  lesson('skip','Play the queued song','Press Right to skip to Sea Glass.','right',
+    (a,b)=>a.kind==='player' && b.kind==='player' && a.track!==seaGlass && a.queue[0]===seaGlass &&
       b.track===seaGlass && b.playing && b.queue.length===a.queue.length-1),
-  {...lesson('return','Return to the player','Press Down to see Sea Glass in Now playing. Back also closes Lyrics.','down',
-    (a,b)=>a.kind==='lyrics' && b.kind==='player' && b.track===seaGlass),alternateKey:'back'},
+  lesson('add','Choose a playlist','Press Down on Now playing to open Add to playlist.','down',
+    (a,b)=>a.kind==='player' && b.kind==='destinations' && b.track===seaGlass),
+  lesson('save','Add Sea Glass to Morning Swim','Press OK to add the playing song to Morning Swim.','ok',
+    (a,b)=>a.kind==='destinations' && a.row===0 && b.kind==='player' && b.track===seaGlass &&
+      !a.inMorningSwim && b.inMorningSwim),
   lesson('assign','Save a playlist shortcut','On the Coast is highlighted again. Hold Left to save it to that arrow.','holdLeft',
     (a,b)=>a.kind==='playlists' && a.playlist===coast && !a.left && b.kind==='playlists' && b.left===coast,
     s=>{openSpotifyDemo(s); spotifyKey(s,'ok'); spotifyKey(s,'down');}),
@@ -86,8 +88,7 @@ export function startSpotifyTour() {
       const step=spotifyTourSteps[index];
       if(exited || !step) return false;
       const after=snapshot(state);
-      const matches=key===step.key || (step.alternateKey!==undefined && key===step.alternateKey);
-      const passed=matches && step.changed(before,after);
+      const passed=key===step.key && step.changed(before,after);
       if(passed) {
         index++;
         spotifyTourSteps[index]?.prepare?.(state);

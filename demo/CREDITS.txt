@@ -9,5 +9,5 @@ https://github.com/mht3/eddy-firmware/tree/dev/website/models
 Original editable geometry
 https://github.com/flipperdevices/flipperzero-3d-models/blob/dff3b17f58a3ec59b8d7104d6c37f450691758a4/flipper-zero/body-3d/flipper-zero-body-3d.stp
 
-The sample songs, timed lyrics, and playlist art were created for Eddy's
+The sample songs and playlist art were created for Eddy's
 interactive demo.

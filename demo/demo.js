@@ -68,7 +68,7 @@ function renderLesson() {
 function press(key) {
   if (tour) {
     const step = tour.step;
-    if (!step || (key !== step.key && key !== step.alternateKey)) {
+    if (!step || key !== step.key) {
       hint.textContent = tour.complete ? 'Tap Explore freely to keep playing.' :
         step.hold ? 'Hold the highlighted button for a moment.' : 'Tap the highlighted button.';
       return;
