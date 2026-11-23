@@ -41,6 +41,10 @@ function readFont(encoded) {
 
 const fonts = Object.fromEntries(Object.entries(fontData).map(([name,data]) => [name,readFont(data)]));
 
+export function glyphAdvance(char, font = 'secondary') {
+  return fonts[font].get(char)?.advance ?? 0;
+}
+
 export function textWidth(value, font = 'secondary') {
   let width = 0, last;
   for (const char of String(value)) {
