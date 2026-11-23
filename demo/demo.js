@@ -1,4 +1,5 @@
 import {drawSpotify, openSpotifyDemo, openSpotifyPlayer, spotifyHit, spotifyKey, spotifyStatus} from './spotify-preview.js';
+import {overlayBattery} from './lcd.js';
 import {spotifyTourSteps, startSpotifyTour} from './spotify-tour.js';
 
 const params = new URLSearchParams(location.search);
@@ -26,7 +27,9 @@ function draw() {
   context.clearRect(0, 0, 128, 64);
   context.fillStyle = context.strokeStyle = '#32291e';
   context.imageSmoothingEnabled = false;
-  if (drawSpotify(context, session())) redrawTimer = setTimeout(draw, 70);
+  const animate = drawSpotify(context, session());
+  overlayBattery(context);
+  if (animate) redrawTimer = setTimeout(draw, 70);
 }
 
 function update() {

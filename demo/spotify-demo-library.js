@@ -1,19 +1,19 @@
-// Original songs and artwork for the local Flipper preview.
+// Original songs and playlists for the local Flipper preview.
 export const songs = [
-  {title:'Dolphin Days', artist:'Mara Cove', album:'Open Water', art:'dolphin', seconds:208},
-  {title:'Low Tide', artist:'Tidepool Club', album:'Breakwater', art:'wave', seconds:174},
-  {title:'High Tide', artist:'Tidepool Club', album:'Breakwater', art:'wave', seconds:195},
-  {title:'Night Ferry', artist:'June Harbor', album:'Blue Hour', art:'moon', seconds:221},
-  {title:'Sea Glass', artist:'Mara Cove', album:'Open Water', art:'dolphin', seconds:168},
-  {title:'First Light', artist:'June Harbor', album:'Blue Hour', art:'sun', seconds:189},
+  {title:'Dolphin Days', artist:'Mara Cove', album:'Open Water', seconds:208},
+  {title:'Low Tide', artist:'Tidepool Club', album:'Breakwater', seconds:174},
+  {title:'High Tide', artist:'Tidepool Club', album:'Breakwater', seconds:195},
+  {title:'Night Ferry', artist:'June Harbor', album:'Blue Hour', seconds:221},
+  {title:'Sea Glass', artist:'Mara Cove', album:'Open Water', seconds:168},
+  {title:'First Light', artist:'June Harbor', album:'Blue Hour', seconds:189},
 ];
 
 export function samplePlaylists() {
   return [
-    {id:'morning-swim',name:'Morning Swim', art:'sun', tracks:[0,2,5]},
-    {id:'on-the-coast',name:'On the Coast', art:'wave', tracks:[1,4]},
-    {id:'after-hours',name:'After Hours', art:'moon', tracks:[3,1]},
-    {id:'harbor-lights',name:'Harbor Lights', art:'dolphin', tracks:[4,3,0]},
+    {id:'morning-swim',name:'Morning Swim', tracks:[0,2,5]},
+    {id:'on-the-coast',name:'On the Coast', tracks:[1,4]},
+    {id:'after-hours',name:'After Hours', tracks:[3,1]},
+    {id:'harbor-lights',name:'Harbor Lights', tracks:[4,3,0]},
   ];
 }
 

@@ -4,8 +4,8 @@ import {text, textWidth} from './lcd.js';
 const pageSize=4;
 const now=()=>performance.now();
 const clock=seconds=>Math.floor(seconds/60)+':'+String(Math.floor(seconds%60)).padStart(2,'0');
-const entry=(action,label,icon,value)=>({action,label,icon,value});
-const songEntry=id=>entry('song',songs[id].title,songs[id].art,id);
+const entry=(action,label,value)=>({action,label,value});
+const songEntry=id=>entry('song',songs[id].title,id);
 const view=(kind,title,value)=>({kind,title,value,row:0});
 const current=s=>s.views.at(-1);
 const open=(s,kind,title,value)=>s.views.push(view(kind,title,value));
@@ -13,7 +13,7 @@ const directions=['up','down','left','right'];
 const directionLabels={up:'↑ Up',right:'→ Right',down:'↓ Down',left:'← Left'};
 const presetStorage='eddy-spotify-demo-presets-v1';
 
-const likedSongs={id:'liked-songs',name:'Liked Songs',art:'heart',tracks:songs.map((_,i)=>i)};
+const likedSongs={id:'liked-songs',name:'Liked Songs',tracks:songs.map((_,i)=>i)};
 function presetOptions(s) { return [likedSongs,...s.playlists]; }
 
 function readPresets(playlists) {
@@ -40,7 +40,6 @@ function playPreset(s,dir) {
   const [first,...rest]=playlist.tracks;
   s.previous.push(s.track); s.queue=rest.map(id=>({id})); play(s,first);
   openSpotifyPlayer(s);
-
 }
 
 export function openSpotifyDemo(session,{persistPresets=true}={}) {
@@ -80,21 +79,21 @@ const albumTracks=name=>songs.flatMap((song,id)=>song.album===name?[id]:[]);
 function menu(s) {
   const v=current(s);
   switch(v.kind) {
-    case 'home': return [entry('playlists','Playlists','playlist'),entry('liked','Liked Songs','heart'),entry('queue','Queue','queue'),
-      entry('albums','Albums','album'),entry('player','Now playing','tracks'),entry('presets','Presets','playlist'),entry('setup','Sign in','tracks')];
-    case 'playlists': case 'destinations': return s.playlists.map((p,i)=>entry(v.kind==='playlists'?'collection':'save',p.name,p.art,i));
-    case 'collection': return [entry('browseTracks','Browse tracks','playlist'),entry('playCollection','Play playlist','tracks')];
+    case 'home': return [entry('playlists','Playlists'),entry('liked','Liked Songs'),entry('queue','Queue'),
+      entry('albums','Albums'),entry('player','Now playing'),entry('presets','Presets'),entry('setup','Sign in')];
+    case 'playlists': case 'destinations': return s.playlists.map((p,i)=>entry(v.kind==='playlists'?'collection':'save',p.name,i));
+    case 'collection': return [entry('browseTracks','Browse tracks'),entry('playCollection','Play playlist')];
     case 'playlist': return s.playlists[v.value].tracks.map(songEntry);
     case 'queue': return s.queue.map(item=>songEntry(item.id));
     case 'liked': return songs.map((song,i)=>songEntry(i));
-    case 'albums': return [...new Set(songs.map(song=>song.album))].map(name=>entry('albumMenu',name,songs.find(song=>song.album===name).art,name));
-    case 'albumMenu': return [entry('album','Browse tracks','album',v.value),entry('playAlbum','Play album','tracks',v.value)];
+    case 'albums': return [...new Set(songs.map(song=>song.album))].map(name=>entry('albumMenu',name,name));
+    case 'albumMenu': return [entry('album','Browse tracks',v.value),entry('playAlbum','Play album',v.value)];
     case 'album': return albumTracks(v.value).map(songEntry);
-    case 'presets': return directions.map(dir=>entry('presetSlot',presetLabel(s,dir),'playlist',dir));
+    case 'presets': return directions.map(dir=>entry('presetSlot',presetLabel(s,dir),dir));
     case 'presetSlot': return [
-      entry('choosePreset','Choose playlist','playlist'),entry('assignLiked','Liked Songs','heart'),entry('clearPreset','Clear preset','playlist')];
-    case 'choosePreset': return s.playlists.map(p=>entry('assignPlaylist',p.name,p.art,p));
-    case 'song': return [entry('play','Play now','tracks'),entry('enqueue','Add to queue','queue'),entry('destinations','Add to playlist','playlist')];
+      entry('choosePreset','Choose playlist'),entry('assignLiked','Liked Songs'),entry('clearPreset','Clear preset')];
+    case 'choosePreset': return s.playlists.map(p=>entry('assignPlaylist',p.name,p));
+    case 'song': return [entry('play','Play now'),entry('enqueue','Add to queue'),entry('destinations','Add to playlist')];
     default: return [];
   }
 }
@@ -163,7 +162,6 @@ function highlightedCollection(s) {
 
 export function spotifyKey(s,key) {
   const v=current(s);
-  s.notice='';
   s.scrollStarted=now();
   if(s.missingPreset) {
     if(key==='ok' || key==='back') s.missingPreset=false;

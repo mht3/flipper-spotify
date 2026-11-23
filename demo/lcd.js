@@ -112,3 +112,59 @@ export function submenu(ctx, title, labels, selected = 0) {
   for (let y=16;y<64;y+=2) ctx.fillRect(126,y,1,1);
   if (labels.length) ctx.fillRect(125,16+Math.floor(48*selected/labels.length),3,Math.max(1,Math.floor(48/labels.length)));
 }
+
+// u8g2 draws the four corners with its integer midpoint circle algorithm.
+export function rounded(ctx, x, y, width, height, radius, solid = false) {
+  const rows = Array.from({length:height}, () => new Set());
+  const point = (dx,dy) => {
+    for (const [a,b] of [[dx,dy],[dy,dx]]) {
+      for (const row of [radius-b,height-1-radius+b]) {
+        rows[row].add(radius-a);
+        rows[row].add(width-1-radius+a);
+      }
+    }
+  };
+  let dx=0, dy=radius, error=1-radius;
+  point(dx,dy);
+  while (dx<dy) {
+    if (error>=0) { dy--; error-=2*dy; }
+    dx++;
+    error+=2*dx+1;
+    point(dx,dy);
+  }
+  for (let i=0;i<height;i++) {
+    if (i>=radius && i<height-radius) { rows[i].add(0); rows[i].add(width-1); }
+    if (i===0 || i===height-1) for(let col=radius;col<width-radius;col++) rows[i].add(col);
+    if (solid) {
+      const left=Math.min(...rows[i]), right=Math.max(...rows[i]);
+      ctx.fillRect(x+left,y+i,right-left+1,1);
+    } else {
+      for (const col of rows[i]) ctx.fillRect(x+col,y+i,1,1);
+    }
+  }
+}
+
+export function drawBattery(ctx, charging = false, y = 1, charge = 84) {
+  ctx.save();
+  ctx.fillStyle = '#432a14';
+  rounded(ctx,99,y,24,8,2);
+  ctx.fillRect(124,y+3,1,2);
+  ctx.fillRect(100,y+1,Math.round(22*charge/100),6);
+  ctx.globalCompositeOperation='xor';
+  text(ctx,charge+'%',111,y+7,'tiny','center');
+  ctx.globalCompositeOperation='source-over';
+  if (charging) {
+    for (const [dx,dy] of [[3,0],[2,1],[1,2],[1,3],[0,4],[1,4],[2,4],[3,4],[2,5],[2,6],[1,7]]) {
+      ctx.fillRect(94+dx,y+dy,1,1);
+    }
+  }
+  ctx.restore();
+}
+
+// gui_redraw_fullscreen_battery leaves an occupied corner to the current view.
+export function overlayBattery(ctx) {
+  const region=ctx.getImageData(94,1,31,8).data;
+  for(let i=3;i<region.length;i+=4) if(region[i]) return;
+  drawBattery(ctx);
+}
+
