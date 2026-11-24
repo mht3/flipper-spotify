@@ -1,6 +1,6 @@
 # Spotify for Flipper Zero
 
-I built this so I could queue the next song without taking my iPhone out of my pocket. Eddy connects my Flipper to my phone over Bluetooth so I can browse Liked Songs, add tracks to a playlist, or hold an arrow to start a favorite playlist.
+Eddy connects the Flipper Zero to an iPhone or Mac over Bluetooth so you can browse Liked Songs, add tracks to a playlist, or play a favorite playlist.
 
 [![Spotify playlists on a Flipper Zero, with Dolphin Days playing](demo/preview-playlists.webp)](https://mht3.github.io/eddy-firmware/spotify-demo/)
 
