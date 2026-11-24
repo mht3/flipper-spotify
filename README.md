@@ -6,6 +6,10 @@ I built this so I could queue the next song without taking my iPhone out of my p
 
 [Try the interactive Spotify demo](https://mht3.github.io/eddy-firmware/spotify-demo/)
 
+On **official firmware 1.5.1**, copy the test build of `flipper_spotify.fap` to `SD Card/apps/Media/` with qFlipper. Open **Apps → Media → Eddy Music Remote**, then choose **Connect Device** in the Eddy iPhone app and select **Eddy** followed by your Flipper’s name. Confirm the pairing code. Keep the remote open while using it. Closing it restores the regular Flipper Bluetooth connection.
+
+On **Eddy Firmware**
+
 1. Copy your Spotify developer Client ID. [Spotify setup guide](https://mht3.github.io/eddy-firmware/spotify/)
 2. Select **Spotify** under **Extras** and install Eddy Firmware. [Open the installer](https://mht3.github.io/eddy-firmware/update/)
 3. On your Flipper, open **Apps → Spotify** and scan the QR code. On your iPhone, open Eddy, connect your Flipper, and enter your Client ID when you log in. [Get the Eddy iPhone app](https://mht3.github.io/eddy-firmware/app/)

@@ -1,6 +1,10 @@
 #include "spotify_library.h"
 #include <string.h>
+#ifdef SPOTIFY_STOCK_PROFILE
+#include "spotify_media_label.h"
+#else
 #include <toolbox/eddy_media_label.h>
+#endif
 
 const char* const spotify_category_names[SpotifyCategories] =
     {"Playlists", "Liked Songs", "Queue", "Albums", "Now playing", "Presets", "Sign in"};

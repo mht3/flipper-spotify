@@ -1,5 +1,7 @@
 #include "spotify_screen.h"
+#ifndef SPOTIFY_STOCK_PROFILE
 #include <momentum/settings.h>
+#endif
 #include <stdio.h>
 #include <string.h>
 
@@ -215,7 +217,11 @@ static void draw_content(Canvas* canvas, const SpotifyScreen* screen) {
     if(spotify_screen_shows_setup(screen)) {
         if(screen->signin_qr) {
             // QR scanning requires dark modules on a light square in either theme.
+#ifdef SPOTIFY_STOCK_PROFILE
+            canvas_set_color(canvas, ColorBlack);
+#else
             canvas_set_color(canvas, momentum_settings.dark_mode ? ColorWhite : ColorBlack);
+#endif
             canvas_set_bitmap_mode(canvas, false);
             canvas_draw_xbm(canvas, 0, 0, SpotifyQrSize, SpotifyQrSize, screen->signin_qr);
             canvas_set_color(canvas, ColorBlack);

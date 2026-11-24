@@ -3,7 +3,10 @@
 #include <furi.h>
 #include <furi_hal_random.h>
 #include <gui/view_dispatcher.h>
-#include <profiles/serial_profile.h>
+#include "spotify_transport.h"
+#ifdef SPOTIFY_STOCK_PROFILE
+#include <dialogs/dialogs.h>
+#endif
 #include <storage/storage.h>
 
 typedef struct {
@@ -127,7 +130,7 @@ static void spotify_event(BleMediaEvent event, const void* data, size_t size, vo
     SpotifyApp* app = context;
     uint8_t peer[GAP_MAC_ADDR_SIZE];
     if(event != BleMediaFrame && event != BleMediaLink) return;
-    if(event == BleMediaFrame && !bt_get_connected_peer_address(app->bt, peer)) return;
+    if(event == BleMediaFrame && !spotify_transport_peer(app->bt, peer)) return;
     SpotifyModel* model = view_get_model(app->view);
     bool redraw = false;
     if(event == BleMediaLink) {
@@ -226,8 +229,8 @@ static void spotify_event(BleMediaEvent event, const void* data, size_t size, vo
 static void spotify_tick(void* context) {
     SpotifyApp* app = context;
     uint8_t peer[GAP_MAC_ADDR_SIZE];
-    bool secure = ble_svc_media_listen(spotify_event, app) &&
-                  bt_get_connected_peer_address(app->bt, peer);
+    bool secure = spotify_transport_listen(spotify_event, app) &&
+                  spotify_transport_peer(app->bt, peer);
     SpotifyModel* model = view_get_model(app->view);
     uint32_t now = furi_get_tick();
     SpotifyLibrary* lib = &model->screen.library;
@@ -314,9 +317,9 @@ static void spotify_tick(void* context) {
     view_commit_model(app->view, true);
     if(request) {
         uint8_t current[GAP_MAC_ADDR_SIZE];
-        bool sent = bt_get_connected_peer_address(app->bt, current) &&
+        bool sent = spotify_transport_peer(app->bt, current) &&
                     !memcmp(peer, current, sizeof(peer)) &&
-                    ble_svc_media_library_request(app, handle, op, request, page);
+                    spotify_transport_request(app, handle, op, request, page);
         if(!sent && op != SpotifyHello && op != SpotifyClear) {
             model = view_get_model(app->view);
             if(model->presets.request == request) {
@@ -651,10 +654,27 @@ static uint8_t* read_signin_qr(void) {
 
 int32_t eddy_spotify_app(void* argument) {
     UNUSED(argument);
-    SpotifyApp app = {
-        .bt = furi_record_open(RECORD_BT),
-        .view = view_alloc(),
-        .sequence = furi_hal_random_get()};
+    Bt* bt = furi_record_open(RECORD_BT);
+#ifdef SPOTIFY_STOCK_PROFILE
+    if(!spotify_transport_open(bt)) {
+        DialogsApp* dialogs = furi_record_open(RECORD_DIALOGS);
+        DialogMessage* message = dialog_message_alloc();
+        dialog_message_set_text(
+            message,
+            "Could not start Bluetooth.\nReopen Eddy to try again.",
+            64,
+            28,
+            AlignCenter,
+            AlignCenter);
+        dialog_message_set_buttons(message, NULL, "Close", NULL);
+        dialog_message_show(dialogs, message);
+        dialog_message_free(message);
+        furi_record_close(RECORD_DIALOGS);
+        furi_record_close(RECORD_BT);
+        return 1;
+    }
+#endif
+    SpotifyApp app = {.bt = bt, .view = view_alloc(), .sequence = furi_hal_random_get()};
     Gui* gui = furi_record_open(RECORD_GUI);
     ViewDispatcher* dispatcher = view_dispatcher_alloc();
     view_allocate_model(app.view, ViewModelTypeLocking, sizeof(SpotifyModel));
@@ -683,7 +703,10 @@ int32_t eddy_spotify_app(void* argument) {
     model->queued = clear ? SpotifyClear : 0;
     view_commit_model(app.view, false);
     if(clear) spotify_tick(&app);
-    ble_svc_media_unlisten(&app);
+    spotify_transport_unlisten(&app);
+#ifdef SPOTIFY_STOCK_PROFILE
+    spotify_transport_close(app.bt);
+#endif
     view_dispatcher_remove_view(dispatcher, 0);
     view_dispatcher_free(dispatcher);
     view_free(app.view);
